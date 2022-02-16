@@ -3,6 +3,7 @@ import notFoundRouter from '@routes/not_found';
 import errorRouter from '@routes/error';
 import verifyRouter from '@routes/verify';
 import modularizeRouter from '@routes/modularize';
+import abstractRouter from '@routes/abstract';
 import transformGufoRouter from '@routes/transform.gufo';
 import { API_VERSION } from '@configs/index';
 import http from 'http';
@@ -32,6 +33,7 @@ app.use((err, _req, res, next) => {
 app.use(`${API_VERSION}/verify`, verifyRouter);
 app.use(`${API_VERSION}/transform/gufo`, transformGufoRouter);
 app.use(`${API_VERSION}/modularize`, modularizeRouter);
+app.use(`${API_VERSION}/abstract`, abstractRouter);
 app.use(notFoundRouter);
 app.use(errorRouter);
 
