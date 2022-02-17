@@ -9,7 +9,7 @@ import {
   performVerification,
   logRequestConcluded,
 } from './utils';
-import { Project, Modularizer } from 'ontouml-js';
+import { Project, Abstractor } from '../ontouml';
 
 export default async function(request: express.Request, response: express.Response, _next: express.NextFunction) {
   try {
@@ -36,7 +36,7 @@ export default async function(request: express.Request, response: express.Respon
 }
 
 function performAbstraction(project: Project, options: any): any {
-  const service = new Modularizer(project, options);
+  const service = new Abstractor(project, options);
   return service.run();
 }
 

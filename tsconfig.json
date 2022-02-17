@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "es6",
+    "lib": ["es2020"],
     "module": "es6",
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
@@ -24,7 +25,9 @@
       "@configs/*": ["src/configs/*"],
       "@error/*": ["src/error/*"],
       "@routes/*": ["src/routes/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+      "@libs/*": ["src/ontouml/libs/*"],
+      "@resources/*": ["resources/*"]
     }
   },
   "include": [

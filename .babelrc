@@ -8,7 +8,9 @@
           "@configs": "./src/configs",
           "@error": "./src/error",
           "@routes": "./src/routes",
-          "@utils": "./src/utils"
+          "@utils": "./src/utils",
+          "@resources": "./resources",
+          "@libs": "./src/ontouml/libs"
         }
       }
     ]
