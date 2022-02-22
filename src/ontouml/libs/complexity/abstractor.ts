@@ -4,6 +4,7 @@ import { Service } from '@libs/service';
 import { ServiceIssue } from '@libs/service_issue';
 // import { ServiceOptions } from '@libs/service_options';
 import { Module } from '@libs/complexity';
+import { AbstractionOptions } from './options';
 // import { getUnpackedSettings } from 'http2';
 // import { lte, partition } from 'lodash';
 // import { ClassVerification } from '@libs/verification';
@@ -19,14 +20,11 @@ import { Module } from '@libs/complexity';
 
 export class Abstractor implements Service {
   project: Project;
+  options: AbstractionOptions;
 
-  constructor(project: Project, _options?: any) {
+  constructor(project: Project, options: Partial<AbstractionOptions>) {
     this.project = project;
-
-    //TODO: make an option parallel or iterative version
-    if (_options) {
-      console.log('Options ignored: this service does not support options');
-    }
+    this.options = new AbstractionOptions(options);
   }
 
   run(): { result: any; issues?: ServiceIssue[] } {
@@ -40,6 +38,8 @@ export class Abstractor implements Service {
   }
 
   buildAll(): Diagram[] {
+    //this.project.model.
+    //options.activeDiagramId
     const allRules = ['RelatorAbstraction']; //, 'NonSortalAbstraction', 'SortalAbstraction', 'SubkindAndPhasePartitionsAbstraction'];
     return allRules
       .map(rule => this.abstract(rule))
