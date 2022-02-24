@@ -78,6 +78,10 @@ export class Project extends OntoumlElement implements ModelElementContainer {
     this.addDiagrams(diagrams);
   }
 
+  getDiagramById(id: string): Diagram {
+    return this.diagrams.find(elem => elem.id === id);
+  }
+
   getContents(): OntoumlElement[] {
     let contents: OntoumlElement[] = [];
 

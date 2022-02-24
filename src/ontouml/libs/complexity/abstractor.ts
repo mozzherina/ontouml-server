@@ -5,12 +5,14 @@ import { ServiceIssue } from '@libs/service_issue';
 // import { ServiceOptions } from '@libs/service_options';
 import { Module } from '@libs/complexity';
 import { AbstractionOptions } from './options';
+// import { deepCopy } from 'lodash';
+import { AbstractionRules } from './abstraction_rules';
 // import { getUnpackedSettings } from 'http2';
 // import { lte, partition } from 'lodash';
 // import { ClassVerification } from '@libs/verification';
 
 /**
- * Class that implements abstractin algorithm proposed in:
+ * Class that implements abstraction algorithm proposed in:
  *
  * Romanenko, E., Calvanese, D. and Guizzardi, G. (2022)
  * Ontology-Based Model Abstraction Reviewed.
@@ -21,15 +23,21 @@ import { AbstractionOptions } from './options';
 export class Abstractor implements Service {
   project: Project;
   options: AbstractionOptions;
+  abstraction: AbstractionRules;
 
   constructor(project: Project, options: Partial<AbstractionOptions>) {
     this.project = project;
     this.options = new AbstractionOptions(options);
+    const diagram = project?.diagrams.find(elem => elem.id === this.options.activeDiagramId)
+    this.abstraction = new AbstractionRules( 
+      this.project.model,
+      diagram
+    );
   }
 
   run(): { result: any; issues?: ServiceIssue[] } {
-    let generatedDiagrams = this.buildAll();
-    this.project.addDiagrams(generatedDiagrams);
+    const generatedDiagram = this.buildAbstraction(this.options.abstractionRule);
+    this.project.addDiagram(generatedDiagram);
 
     return {
       result: this.project,
@@ -37,14 +45,23 @@ export class Abstractor implements Service {
     };
   }
 
-  buildAll(): Diagram[] {
-    //this.project.model.
-    //options.activeDiagramId
-    const allRules = ['RelatorAbstraction']; //, 'NonSortalAbstraction', 'SortalAbstraction', 'SubkindAndPhasePartitionsAbstraction'];
-    return allRules
-      .map(rule => this.abstract(rule))
-      .map(abstraction => abstraction.createDiagram(this.project.model));
+  buildAbstraction(abstractionRule: string): Diagram {
+    console.log("Abstraction rule to be applied: " + abstractionRule);
+    switch (abstractionRule) {
+      case 'p2':
+        return this.abstraction.p2([]);
+    }
+    console.warn("No abstraction was build");
+    return null;
   }
+  
+  // //this.project.model.
+  // //options.activeDiagramId
+  // const allRules = ['RelatorAbstraction']; //, 'NonSortalAbstraction', 'SortalAbstraction', 'SubkindAndPhasePartitionsAbstraction'];
+  // return allRules
+  //   .map(rule => this.abstract(rule))
+  //   .map(abstraction => abstraction.createDiagram(this.project.model));
+
 
   abstract(rule: string): Module {
     let abstraction = new Module('Model Abstraction of rule ' + rule);

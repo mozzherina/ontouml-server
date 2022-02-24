@@ -10,6 +10,7 @@ import {
   logRequestConcluded,
 } from './utils';
 import { Project, Abstractor } from '../ontouml';
+import fs from 'fs'
 
 export default async function(request: express.Request, response: express.Response, _next: express.NextFunction) {
   try {
@@ -24,6 +25,13 @@ export default async function(request: express.Request, response: express.Respon
       const statusCode = 200;
       output = performAbstraction(project, options);
       response.status(statusCode).json(output);
+      const JSONoutput = JSON.stringify(output);
+      fs.writeFile('E:/Work/PhD/json_result.json', JSONoutput, err => {
+        if (err) {
+          console.error(err);
+          return
+        }
+      });
       logRequestConcluded(statusCode);
     }
   } catch (error) {
