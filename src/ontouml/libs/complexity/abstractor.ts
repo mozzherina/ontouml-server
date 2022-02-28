@@ -37,6 +37,8 @@ export class Abstractor implements Service {
 
   run(): { result: any; issues?: ServiceIssue[] } {
     const generatedDiagram = this.buildAbstraction(this.options.abstractionRule);
+    // TODO: could be undefined, check if it would work.
+    // (no componentof classes)
     this.project.addDiagram(generatedDiagram);
 
     return {
