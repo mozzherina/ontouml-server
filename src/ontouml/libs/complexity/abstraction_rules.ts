@@ -1,6 +1,7 @@
-import { Class, ClassStereotype, Diagram, OntoumlType, Package, Property, Relation, RelationStereotype, stereotypeUtils } from "@libs/ontouml";
+import { Class, ClassStereotype, Diagram, OntoumlType, Package, Property, Relation, RelationStereotype } from "@libs/ontouml";
 import { cloneDeep } from 'lodash'
 import uniqid from 'uniqid';
+import { ModelGraph } from ".";
 
 
 /**
@@ -23,6 +24,7 @@ import uniqid from 'uniqid';
 // }
 
 export class AbstractionRules {
+    graph: ModelGraph;
     diagram: Diagram; // original diagram
     model: Package; // original model
     relations: Relation[]; // all relations of the original diagram
@@ -31,13 +33,20 @@ export class AbstractionRules {
     classesMap: {}; // old class's id -> new class hashMap
 
     constructor(model: Package, diagram: Diagram) {
+        this.graph = new ModelGraph(model, diagram);
+        // this.graph.printNodeById('q.F6tP6GAqACBR1i');
+        // this.graph.printNodeById('u3K6tP6GAqACBR0K');
         this.model = model;
         this.diagram = diagram;
-        this.relations = this.getDiagramRelations();
+        this.graph.updateAllIds();
         const newName = "Abstract " + diagram.getName();
-        this.newModel = this.makeNewModel(newName);
-        this.newDiagram = this.makeNewDiagram(newName);
-        this.classesMap = {};
+        this.newModel = this.graph.exportModel(newName);
+        //this.newDiagram = this.graph.exportDiagram(newName, this.model);
+        
+        // this.relations = this.getDiagramRelations();
+        // this.newModel = this.makeNewModel(newName);
+        // this.newDiagram = this.makeNewDiagram(newName);
+        // this.classesMap = {};
     }
 
     makeNewModel(name: string): Package {
@@ -187,55 +196,57 @@ export class AbstractionRules {
         this.classesMap[partClass.id] = newClass;
     }
 
-    p2(relations: Relation[]): Diagram {
-        if (relations.length === 0) {
-            relations = this.getDiagramRelations([RelationStereotype.COMPONENT_OF]);
-        }   
+    p2(_relations: Relation[]): Diagram {
+        // if (relations.length === 0) {
+        //     relations = this.getDiagramRelations([RelationStereotype.COMPONENT_OF]);
+        // }   
 
-        // form a hash-table of relations that need to be processed before
-        // componentOf -> [incoming from MomentType relations or other parthood relations]
-        const relationsHash = {}
-        relations.forEach(relation => {
-            const source = relation.getTargetEnd().propertyType.id;
-            // get incomig relations from MomentTypes
-            relationsHash[relation.id] = this.getInRelations(source, [], stereotypeUtils.MomentOnlyStereotypes);
-            // get incoming parthood relations from other classes 
-            // by this time should be componentOf relations only
-            relationsHash[relation.id] = [ ...relationsHash[relation.id], 
-                ...this.relations.filter(elem =>
-                    (elem.properties[0].propertyType.id === source) &&
-                    elem.properties[1].isAggregationEnd()
-            )];
-        })
+        // // form a hash-table of relations that need to be processed before
+        // // componentOf -> [incoming from MomentType relations or other parthood relations]
+        // const relationsHash = {}
+        // relations.forEach(relation => {
+        //     const source = relation.getTargetEnd().propertyType.id;
+        //     // get incomig relations from MomentTypes
+        //     relationsHash[relation.id] = this.getInRelations(source, [], stereotypeUtils.MomentOnlyStereotypes);
+        //     // get incoming parthood relations from other classes 
+        //     // by this time should be componentOf relations only
+        //     relationsHash[relation.id] = [ ...relationsHash[relation.id], 
+        //         ...this.relations.filter(elem =>
+        //             (elem.properties[0].propertyType.id === source) &&
+        //             elem.properties[1].isAggregationEnd()
+        //     )];
+        // })
         
-        // sort relations into processing order
-        const relationsSort = this.topologySort(relationsHash);
+        // // sort relations into processing order
+        // const relationsSort = this.topologySort(relationsHash);
        
-        // create new classes on the model
-        let wholePartHash = {};
-        relationsSort.forEach(relationId => this.createWholeClass(relationId, wholePartHash));
-        // add new classes to the model
-        let keptClasses = [];
-        (new Set(Object.values(this.classesMap))).forEach((newClass: Class )=> {
-            this.newModel.contents.push(newClass);
-            keptClasses.push(newClass.getName());
-        })
+        // // create new classes on the model
+        // let wholePartHash = {};
+        // relationsSort.forEach(relationId => this.createWholeClass(relationId, wholePartHash));
+        // // add new classes to the model
+        // let keptClasses = [];
+        // (new Set(Object.values(this.classesMap))).forEach((newClass: Class )=> {
+        //     this.newModel.contents.push(newClass);
+        //     keptClasses.push(newClass.getName());
+        // })
 
-        // move all to the new diagram
-        let diagramMap = {};
-        this.diagram.getClassViews().forEach(elem => {
-                if (!Object.keys(this.classesMap).includes(elem.modelElement.id)){
-                    // if class wasn't changed
-                    this.newDiagram.contents.push(this.createDiagramElem(elem, diagramMap));
-                } else if (keptClasses.includes(
-                    this.model.getElementById(elem.modelElement.id).getName()
-                )) {
-                    // or it was kept
-                    let newClass = this.createDiagramElem(elem, diagramMap);
-                    newClass.modelElement = this.classesMap[newClass.modelElement.id];
-                    this.newDiagram.contents.push(newClass);
-                }
-        });
+        // // move all to the new diagram
+        // let diagramMap = {};
+        // this.diagram.getClassViews().forEach(elem => {
+        //         if (!Object.keys(this.classesMap).includes(elem.modelElement.id)){
+        //             // if class wasn't changed
+        //             this.newDiagram.contents.push(this.createDiagramElem(elem, diagramMap));
+        //         } else if (keptClasses.includes(
+        //             this.model.getElementById(elem.modelElement.id).getName()
+        //         )) {
+        //             // or it was kept
+        //             let newClass = this.createDiagramElem(elem, diagramMap);
+        //             newClass.modelElement = this.classesMap[newClass.modelElement.id];
+        //             this.newDiagram.contents.push(newClass);
+        //         }
+        // });
+
+
 
         // this.diagram.contents.forEach((elem: { 
         //     id: string; 
@@ -265,7 +276,7 @@ export class AbstractionRules {
         // push new model
         this.model.contents.push(this.newModel);
 
-        return this.newDiagram;
+        return null; //this.newDiagram;
     }
     // --------------------------------------------------------------------------------
     // -----------------END OF: Abstracting parthood functions-------------------------
