@@ -1,5 +1,6 @@
-import { Diagram, DiagramElement, GeneralizationSet, ModelElement, Generalization, OntoumlType, Package, Relation } from "@libs/ontouml";
+import { Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, OntoumlType, Package, Relation } from "@libs/ontouml";
 import uniqid from 'uniqid';
+
 class ModelGraphNode {
     element: ModelElement;
     representations: DiagramElement[];
@@ -27,18 +28,20 @@ export class ModelGraph {
     allRelations: IElement = {};
     allViews: IDiagramElement = {};
     allStereotypes: {};
+    idMap: {};
 
     constructor(model: Package, diagram: Diagram) {
         this.allStereotypes = {};
+        this.idMap = {};
 
         diagram.getContents()
             .filter(e => e.type === OntoumlType.CLASS_VIEW)
-            .forEach(classView => this.includeElement(this.allNodes, classView, model));
+            .forEach(classView => this.includeElement(this.allNodes, classView, model, false));
         
         diagram.getContents()
             .filter(e => (e.type === OntoumlType.RELATION_VIEW) || (e.type === OntoumlType.GENERALIZATION_VIEW))
             .forEach(relationView => {
-                const relation = this.includeElement(this.allRelations, relationView, model);
+                const relation = this.includeElement(this.allRelations, relationView, model, true);
                 const sourceId = (relationView.type === OntoumlType.RELATION_VIEW) 
                     ? (relation.element as Relation).properties[0].propertyType.id
                     : (relation.element as Generalization).specific.id;
@@ -48,11 +51,11 @@ export class ModelGraph {
                 this.createConnection(this.allNodes[sourceId], relation);
                 this.createConnection(relation, this.allNodes[targetId]);   
             });
-
+        
         diagram.getContents()
             .filter(e => e.type === OntoumlType.GENERALIZATION_SET_VIEW)
             .forEach(genSetView => {
-                const node = this.includeElement(this.allRelations, genSetView, model);
+                const node = this.includeElement(this.allRelations, genSetView, model, false);
                 const generalizations = (node.element as GeneralizationSet).generalizations;
                 generalizations.forEach(relation  => {
                     this.createConnection(this.allRelations[relation.id], node);
@@ -60,18 +63,66 @@ export class ModelGraph {
                 const generalization = this.allRelations[generalizations[0].id].element as Generalization;
                 this.createConnection(node, this.allNodes[generalization.general.id]);
             });
-     }
+    }
 
-     includeElement(elementMap: {}, element: DiagramElement, model: Package): ModelGraphNode {
-         // @ts-ignore
-        const modelElement = element.modelElement;
-        if (elementMap[modelElement.id]) {
+    updateRepresentationIds(element: DiagramElement, _hasSourceTarget: boolean): DiagramElement {
+        const newId = uniqid();
+        this.idMap[element.id] = newId;
+        element.id = newId;
+        // @ts-ignore
+        element.shape.id = newId + "_shape";
+        // possible because all CLASS_VIEWs are already processed
+        // TODO: check if following will work for association classes
+        /*
+        if (hasSourceTarget) {
+            // @ts-ignore
+            element.source = this.allViews[this.idMap[element.source.id]];
+            // @ts-ignore
+            element.target = this.allNodes[this.idMap[element.target.id]];                 
+        }*/
+        return element;
+    }
+
+    updateModelElementIds(element: OntoumlElement): OntoumlElement {
+        const newId = uniqid();
+        this.idMap[element.id] = newId;
+        element.id = newId;
+        switch (element.type) {
+            case OntoumlType.RELATION_TYPE:
+                (element as Relation).properties[0].id = newId + "_prop0";
+                /*let oldId = (element as Relation).properties[0].propertyType.id;
+                // @ts-ignore
+                (element as Relation).properties[0].propertyType = this.allNodes[this.idMap[oldId]].element;
+                */
+                (element as Relation).properties[1].id = newId + "_prop1";
+                /*
+                oldId = (element as Relation).properties[1].propertyType.id;
+                // @ts-ignore
+                (element as Relation).properties[1].propertyType = this.allNodes[this.idMap[oldId]].element;
+                */
+                //(element as Relation).properties[1].propertyType.id = this.idMap[oldId];
+                break;
+            case OntoumlType.GENERALIZATION_SET_TYPE:
+                /*let oldGenId = (element as Generalization).general.id;
+                (element as Generalization).general.id = this.idMap[oldGenId];
+                oldGenId = (element as Generalization).specific.id;
+                (element as Generalization).specific.id = this.idMap[oldGenId];*/
+                break;
+        }
+        return element;
+    }
+
+    includeElement(elementMap: {}, element: DiagramElement, model: Package, 
+        hasSourceTarget: boolean): ModelGraphNode {
+        // @ts-ignore
+        let modelElement = element.modelElement;
+        element = this.updateRepresentationIds(element, hasSourceTarget);
+        if (this.idMap[modelElement.id]) {
+            modelElement = elementMap[this.idMap[modelElement.id]].element;
             elementMap[modelElement.id].representations.push(element);
         } else {
-            const newNode = new ModelGraphNode(
-                model.getElementById(modelElement.id) as ModelElement, 
-                element
-            );
+            modelElement = this.updateModelElementIds(model.getElementById(modelElement.id));
+            const newNode = new ModelGraphNode(modelElement as ModelElement, element);
             elementMap[modelElement.id] = newNode;
             // @ts-ignore
             const stereotype = newNode.element.stereotype;
@@ -83,6 +134,8 @@ export class ModelGraph {
                 } 
             }
         }
+        // @ts-ignore
+        element.modelElement = modelElement;
         this.allViews[element.id] = element;
         return elementMap[modelElement.id];
      }
@@ -108,8 +161,9 @@ export class ModelGraph {
         diagram.id = uniqid();
         diagram.setName(name);
         diagram.owner = owner;
-        // TODO
-        diagram.contents = []; // Object.values(this.allViews).map(node => (node as OntoumlElement));
+        // TODO: fix if possible
+        // @ts-ignore
+        diagram.contents = Object.values(this.allViews).map(node => (node as OntoumlElement));
         return diagram;
     }
 
@@ -121,26 +175,4 @@ export class ModelGraph {
         console.log("No. ins: " + this.allNodes[id].ins.length);
         console.log("No. outs: " + this.allNodes[id].outs.length);
     }
-
-    changeId(map: {}, id: string, inElement: boolean) {
-        let element = { ...map[id] };
-        delete map[id];
-        const newId = uniqid();
-        if (inElement) {
-            element.element.id = newId;
-        } else {
-            element.id = newId;
-        }
-        map[newId] = element;
-    }
-
-    updateAllIds() {
-        const nodesKeys = Object.keys(this.allNodes);
-        nodesKeys.forEach(id => this.changeId(this.allNodes, id, true))
-        const relationKeys = Object.keys(this.allRelations);
-        relationKeys.forEach(id => this.changeId(this.allRelations, id, true))
-        const viewsKeys = Object.keys(this.allViews);
-        viewsKeys.forEach(id => this.changeId(this.allViews, id, false))
-    }
-
 }

@@ -33,15 +33,12 @@ export class AbstractionRules {
     classesMap: {}; // old class's id -> new class hashMap
 
     constructor(model: Package, diagram: Diagram) {
-        this.graph = new ModelGraph(model, diagram);
-        // this.graph.printNodeById('q.F6tP6GAqACBR1i');
-        // this.graph.printNodeById('u3K6tP6GAqACBR0K');
         this.model = model;
         this.diagram = diagram;
-        this.graph.updateAllIds();
+        this.graph = new ModelGraph(cloneDeep(model), cloneDeep(diagram));
         const newName = "Abstract " + diagram.getName();
         this.newModel = this.graph.exportModel(newName);
-        //this.newDiagram = this.graph.exportDiagram(newName, this.model);
+        this.newDiagram = this.graph.exportDiagram(newName, this.newModel);
         
         // this.relations = this.getDiagramRelations();
         // this.newModel = this.makeNewModel(newName);
@@ -276,7 +273,7 @@ export class AbstractionRules {
         // push new model
         this.model.contents.push(this.newModel);
 
-        return null; //this.newDiagram;
+        return this.newDiagram;
     }
     // --------------------------------------------------------------------------------
     // -----------------END OF: Abstracting parthood functions-------------------------
