@@ -71,15 +71,6 @@ export class ModelGraph {
         element.id = newId;
         // @ts-ignore
         element.shape.id = newId + "_shape";
-        // possible because all CLASS_VIEWs are already processed
-        // TODO: check if following will work for association classes
-        /*
-        if (hasSourceTarget) {
-            // @ts-ignore
-            element.source = this.allViews[this.idMap[element.source.id]];
-            // @ts-ignore
-            element.target = this.allNodes[this.idMap[element.target.id]];                 
-        }*/
         return element;
     }
 
@@ -87,27 +78,9 @@ export class ModelGraph {
         const newId = uniqid();
         this.idMap[element.id] = newId;
         element.id = newId;
-        switch (element.type) {
-            case OntoumlType.RELATION_TYPE:
-                (element as Relation).properties[0].id = newId + "_prop0";
-                /*let oldId = (element as Relation).properties[0].propertyType.id;
-                // @ts-ignore
-                (element as Relation).properties[0].propertyType = this.allNodes[this.idMap[oldId]].element;
-                */
-                (element as Relation).properties[1].id = newId + "_prop1";
-                /*
-                oldId = (element as Relation).properties[1].propertyType.id;
-                // @ts-ignore
-                (element as Relation).properties[1].propertyType = this.allNodes[this.idMap[oldId]].element;
-                */
-                //(element as Relation).properties[1].propertyType.id = this.idMap[oldId];
-                break;
-            case OntoumlType.GENERALIZATION_SET_TYPE:
-                /*let oldGenId = (element as Generalization).general.id;
-                (element as Generalization).general.id = this.idMap[oldGenId];
-                oldGenId = (element as Generalization).specific.id;
-                (element as Generalization).specific.id = this.idMap[oldGenId];*/
-                break;
+        if (element.type === OntoumlType.RELATION_TYPE) {
+            (element as Relation).properties[0].id = newId + "_prop0";
+            (element as Relation).properties[1].id = newId + "_prop1";
         }
         return element;
     }
