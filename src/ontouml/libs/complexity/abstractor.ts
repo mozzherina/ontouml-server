@@ -1,4 +1,4 @@
-import { Project, } from '@libs/ontouml'; 
+import { Project, RelationStereotype } from '@libs/ontouml'; 
 import { Service } from '@libs/service';
 import { ServiceIssue } from '@libs/service_issue';
 import { AbstractionOptions } from './options';
@@ -50,7 +50,7 @@ export class Abstractor implements Service {
     switch (abstractionRule) {
       case 'p2':
         this.name = "Abstraction P2: " + this.name;
-        return this.abstraction.p2([]);
+        return this.abstraction.p2(this.graph.allStereotypes[RelationStereotype.COMPONENT_OF]);
     }
     console.warn("No abstraction was build");
     return null;

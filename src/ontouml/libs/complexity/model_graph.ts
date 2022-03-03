@@ -1,7 +1,7 @@
-import { Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, OntoumlType, Package, Relation } from "@libs/ontouml";
+import { AggregationKind, Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, OntoumlType, Package, Relation } from "@libs/ontouml";
 import uniqid from 'uniqid';
 
-class ModelGraphNode {
+export class ModelGraphNode {
     element: ModelElement;
     representations: DiagramElement[];
     ins: ModelGraphNode[];
@@ -42,12 +42,20 @@ export class ModelGraph {
             .filter(e => (e.type === OntoumlType.RELATION_VIEW) || (e.type === OntoumlType.GENERALIZATION_VIEW))
             .forEach(relationView => {
                 const relation = this.includeElement(this.allRelations, relationView, model, true);
-                const sourceId = (relationView.type === OntoumlType.RELATION_VIEW) 
+                let sourceId = (relationView.type === OntoumlType.RELATION_VIEW) 
                     ? (relation.element as Relation).properties[0].propertyType.id
                     : (relation.element as Generalization).specific.id;
-                const targetId = (relationView.type === OntoumlType.RELATION_VIEW) 
+                let targetId = (relationView.type === OntoumlType.RELATION_VIEW) 
                     ? (relation.element as Relation).properties[1].propertyType.id
                     : (relation.element as Generalization).general.id;
+                // TODO: delete when error is fixed
+                if ((relationView.type === OntoumlType.RELATION_VIEW) && 
+                    ((relation.element as Relation).properties[1]
+                        .aggregationKind === AggregationKind.COMPOSITE)) {
+                        const id = sourceId;
+                        sourceId = targetId;
+                        targetId = id;
+                    }
                 this.createConnection(this.allNodes[sourceId], relation);
                 this.createConnection(relation, this.allNodes[targetId]);   
             });

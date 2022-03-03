@@ -1,5 +1,6 @@
-import { Relation } from "@libs/ontouml";
-import { ModelGraph } from ".";
+import { ModelGraph, ModelGraphNode } from ".";
+import { Class, RelationStereotype, Property, Relation, stereotypeUtils, OntoumlType, RelationView, ClassView } from "@libs/ontouml";
+import uniqid from 'uniqid';
 
 
 /**
@@ -56,8 +57,84 @@ export class AbstractionRules {
     // --------------------------------------------------------------------------------
     // Abstracting parthood functions
     // --------------------------------------------------------------------------------
-    p2(_relations: Relation[]): ModelGraph {
+    moveRelation(source: ModelGraphNode, _target: ModelGraphNode, where: ModelGraphNode, 
+            _subRelation: ModelGraphNode, _relation: ModelGraphNode, _name: string) {
+        if (stereotypeUtils.MomentOnlyStereotypes.includes((source.element as Class).stereotype)) {
+            _target =  where;
+            _subRelation.representations.forEach(relView => {
+                (relView as RelationView).target = where.representations[0] as ClassView;
+            });
+        } 
+        /*else if (stereotypeUtils.isEventClassStereotype((source.element as Class).stereotype)) {
+            if (((subRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) 
+                || (relation.element as Relation).properties[1].isReadOnly) {
+                _target = where;
+            }
+        } else {
+            subRelation.element.setName(name);
+            _target = where;
+        }*/
+    }
+    
+    processComponentOf(relation: ModelGraphNode): string[] {
+        const wholeClass = relation.outs[0];
+        const partClass = relation.ins[0];
+        let name = wholeClass.element.getName() + "'s " 
+                + partClass.element.getName();
+        
+        let partProperty = new Property();
+        partProperty.setName(partClass.element.getName());
+        partProperty.id = uniqid();
+        (wholeClass.element as Class).addAttribute(partProperty);
+
+        partClass.ins.forEach(inRelation => {
+            if ((inRelation.element as Relation).stereotype === RelationStereotype.COMPONENT_OF) {
+                this.processComponentOf(inRelation);
+            } else if (inRelation.element.type === OntoumlType.RELATION_TYPE) {
+                if (inRelation.element.getName()) {
+                    name =  name + " " + inRelation.element.getName();
+                }
+                //this.moveRelation(inRelation.ins[0], inRelation.outs[0], wholeClass, 
+                //    inRelation, relation, name);
+                if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelation.ins[0].element as Class).stereotype)) {
+                    inRelation.outs[0] =  wholeClass;
+                    (inRelation.element as Relation).properties[1].propertyType = wholeClass.element as Class;
+                    inRelation.representations.forEach(relView => {
+                        (relView as RelationView).target = wholeClass.representations[0] as ClassView;
+                    });
+                }
+            }
+        })
+
+        /*
+        partClass.outs.forEach(outRelation => {
+            if ((outRelation.element as Relation).stereotype != RelationStereotype.COMPONENT_OF) {
+                if (outRelation.element.getName()) {
+                    name =  name + " " + outRelation.element.getName();
+                }
+                this.moveRelation(outRelation.outs[0], outRelation.ins[0], wholeClass, 
+                    outRelation, relation, name);
+            }
+        })*/
+        
+        delete this.graph.allNodes[partClass.element.id];
+        delete this.graph.allRelations[relation.element.id];
+        return [partClass.element.id, relation.element.id];
+    }
+    
+    
+    p2(relations: ModelGraphNode[]): ModelGraph {
+        relations.forEach(relation => {
+            const deletedIds = this.processComponentOf(relation);
+            Object.keys(this.graph.allViews).forEach(id => {
+                const view = this.graph.allViews[id];
+                if (deletedIds.includes((view as RelationView).modelElement.id)) {
+                    delete this.graph.allViews[id];
+                }
+            })
+        });
         return this.graph;
+        //return null;
     }
     // --------------------------------------------------------------------------------
     // -----------------END OF: Abstracting parthood functions-------------------------
