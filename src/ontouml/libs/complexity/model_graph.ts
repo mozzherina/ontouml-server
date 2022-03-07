@@ -1,4 +1,5 @@
-import { AggregationKind, Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, OntoumlType, Package, Relation } from "@libs/ontouml";
+import { AggregationKind, Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, 
+    OntoumlType, Package, Relation, Class, RelationView, ClassView } from "@libs/ontouml";
 import uniqid from 'uniqid';
 
 export class ModelGraphNode {
@@ -12,6 +13,40 @@ export class ModelGraphNode {
         this.representations = [representation];
         this.ins = [];
         this.outs = [];
+    }
+
+    removeInRelation(relation: ModelGraphNode) {
+        const index = this.ins.indexOf(relation);
+        if (index > -1) {
+            this.ins.splice(index, 1);
+        }
+    }
+    
+    removeOutRelation(relation: ModelGraphNode) {
+        const index = this.outs.indexOf(relation);
+        if (index > -1) {
+            this.outs.splice(index, 1);
+        }
+    }
+
+    moveRelationTo(newOut: ModelGraphNode) {
+        this.outs[0] =  newOut;
+        // change link in properties section
+        (this.element as Relation).properties[1].propertyType = newOut.element as Class;
+        // change all representations
+        this.representations.forEach(relView => {
+            (relView as RelationView).target = newOut.representations[0] as ClassView;
+        });
+    }
+
+    moveRelationFrom(newIn: ModelGraphNode) {
+        this.ins[0] =  newIn;
+        // change link in properties section
+        (this.element as Relation).properties[0].propertyType = newIn.element as Class;
+        // change all representations
+        this.representations.forEach(relView => {
+            (relView as RelationView).source = newIn.representations[0] as ClassView;
+        });
     }
 }
 
@@ -48,7 +83,7 @@ export class ModelGraph {
                 let targetId = (relationView.type === OntoumlType.RELATION_VIEW) 
                     ? (relation.element as Relation).properties[1].propertyType.id
                     : (relation.element as Generalization).general.id;
-                // TODO: delete when error is fixed
+                // TODO: delete when error with aggregation is fixed
                 if ((relationView.type === OntoumlType.RELATION_VIEW) && 
                     ((relation.element as Relation).properties[1]
                         .aggregationKind === AggregationKind.COMPOSITE)) {
@@ -99,6 +134,7 @@ export class ModelGraph {
         let modelElement = element.modelElement;
         element = this.updateRepresentationIds(element, hasSourceTarget);
         if (this.idMap[modelElement.id]) {
+            // add one more view to the relation/class that has been already processed
             modelElement = elementMap[this.idMap[modelElement.id]].element;
             elementMap[modelElement.id].representations.push(element);
         } else {
@@ -142,9 +178,10 @@ export class ModelGraph {
         diagram.id = uniqid();
         diagram.setName(name);
         diagram.owner = owner;
-        // TODO: fix if possible
+        // TODO: fix if possible, the next line doesn't help
+        // diagram.contents = Object.values(this.allViews).map(node => (node as OntoumlElement));
         // @ts-ignore
-        diagram.contents = Object.values(this.allViews).map(node => (node as OntoumlElement));
+        diagram.contents = Object.values(this.allViews);
         return diagram;
     }
 
