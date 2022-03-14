@@ -45,7 +45,7 @@ export class ModelGraphNode {
         (this.element as Relation).properties[0].propertyType = newIn.element as Class;
         // change all representations
         this.representations.forEach(relView => {
-            (relView as RelationView).source = newIn.representations[0] as ClassView;
+            (relView as RelationView).source = newIn. representations[0] as ClassView;
         });
     }
 }
