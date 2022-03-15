@@ -1,4 +1,4 @@
-import { Project, RelationStereotype } from '@libs/ontouml'; 
+import { Project, stereotypeUtils } from '@libs/ontouml'; 
 import { Service } from '@libs/service';
 import { ServiceIssue } from '@libs/service_issue';
 import { AbstractionOptions } from './options';
@@ -33,7 +33,7 @@ export class Abstractor implements Service {
   }
 
   run(): { result: any; issues?: ServiceIssue[] } {
-    this.graph = this.buildAbstraction(this.options.abstractionRule);
+    this.graph = this.buildAbstraction(this.options.activeElementId, this.options.abstractionRule);
     const model = this.graph.exportModel(this.name);
     const diagram = this.graph.exportDiagram(this.name, model);
     this.project.model.contents.push(model);    
@@ -45,13 +45,22 @@ export class Abstractor implements Service {
     };
   }
 
-  buildAbstraction(abstractionRule: string): ModelGraph {
+  buildAbstraction(activeElementId: string, abstractionRule: string): ModelGraph {
+    if (activeElementId) {
+      const node = this.graph.allNodes[this.graph.idMap[activeElementId]];
+      this.name = this.name + ": abstract " + node.element.getName();
+      return this.abstraction.abstract(node);
+    }
+
     console.log("Abstraction rule to be applied: " + abstractionRule);
     switch (abstractionRule) {
-      case 'p2':
-        this.name = "Abstraction P2: " + this.name;
-        return this.abstraction.p2(this.graph.allStereotypes[RelationStereotype.COMPONENT_OF]);
+      case 'parthood':
+        this.name = this.name + ": abstraction parthood";
+        return this.abstraction.parthood(
+          this.graph.getElementsByStereotypes(stereotypeUtils.PartWholeRelationStereotypes)
+        );
     }
+
     console.warn("No abstraction was build");
     return null;
   }

@@ -1,54 +1,7 @@
+import { ModelGraphNode } from ".";
 import { AggregationKind, Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, 
-    OntoumlType, Package, Relation, Class, RelationView, ClassView } from "@libs/ontouml";
+    OntoumlType, Package, Relation, Stereotype } from "@libs/ontouml";
 import uniqid from 'uniqid';
-
-export class ModelGraphNode {
-    element: ModelElement;
-    representations: DiagramElement[];
-    ins: ModelGraphNode[];
-    outs: ModelGraphNode[];
-
-    constructor(element: ModelElement, representation: DiagramElement) {
-        this.element = element;
-        this.representations = [representation];
-        this.ins = [];
-        this.outs = [];
-    }
-
-    removeInRelation(relation: ModelGraphNode) {
-        const index = this.ins.indexOf(relation);
-        if (index > -1) {
-            this.ins.splice(index, 1);
-        }
-    }
-    
-    removeOutRelation(relation: ModelGraphNode) {
-        const index = this.outs.indexOf(relation);
-        if (index > -1) {
-            this.outs.splice(index, 1);
-        }
-    }
-
-    moveRelationTo(newOut: ModelGraphNode) {
-        this.outs[0] =  newOut;
-        // change link in properties section
-        (this.element as Relation).properties[1].propertyType = newOut.element as Class;
-        // change all representations
-        this.representations.forEach(relView => {
-            (relView as RelationView).target = newOut.representations[0] as ClassView;
-        });
-    }
-
-    moveRelationFrom(newIn: ModelGraphNode) {
-        this.ins[0] =  newIn;
-        // change link in properties section
-        (this.element as Relation).properties[0].propertyType = newIn.element as Class;
-        // change all representations
-        this.representations.forEach(relView => {
-            (relView as RelationView).source = newIn. representations[0] as ClassView;
-        });
-    }
-}
 
 interface IElement {
     [id: string]: ModelGraphNode;
@@ -162,6 +115,10 @@ export class ModelGraph {
         target.ins.push(source); 
     }
 
+    // --------------------------------------------------------------------------------
+    // Export functions
+    // --------------------------------------------------------------------------------
+
     exportModel(name: string): Package {
         let model = new Package();
         model.id = uniqid();
@@ -179,14 +136,26 @@ export class ModelGraph {
         diagram.setName(name);
         diagram.owner = owner;
         // TODO: fix if possible, the next line doesn't help
-        // diagram.contents = Object.values(this.allViews).map(node => (node as OntoumlElement));
         // @ts-ignore
         diagram.contents = Object.values(this.allViews);
         return diagram;
     }
 
+    // --------------------------------------------------------------------------------
+    // ------------------------END OF: Export functions--------------------------------
+    // --------------------------------------------------------------------------------
+
+    getElementsByStereotypes(stereotypes: Stereotype[]): ModelGraphNode[] {
+        let nodes = [];
+        stereotypes?.forEach(stereotype => {
+            const newNodes = this.allStereotypes[stereotype] || [];
+            nodes = [...nodes, ...newNodes];
+        });
+        return nodes;
+    }
+
     /**
-     * For debugging only
+     * For debugging purposes only
      */
     printNodeById(id: string) {
         console.log("Name: " + this.allNodes[id].element.getName());
