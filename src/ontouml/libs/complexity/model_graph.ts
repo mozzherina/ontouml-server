@@ -1,7 +1,8 @@
 import { ModelGraphNode } from ".";
 import { AggregationKind, Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, 
-    OntoumlType, Package, Relation, Stereotype } from "@libs/ontouml";
+    OntoumlType, Package, Relation, Stereotype, RelationStereotype } from "@libs/ontouml";
 import uniqid from 'uniqid';
+import { cloneDeep } from 'lodash'
 
 interface IElement {
     [id: string]: ModelGraphNode;
@@ -18,18 +19,21 @@ export class ModelGraph {
     allStereotypes: {};
     idMap: {};
 
+    // --------------------------------------------------------------------------------
+    // Construction functions
+    // --------------------------------------------------------------------------------
     constructor(model: Package, diagram: Diagram) {
         this.allStereotypes = {};
         this.idMap = {};
 
         diagram.getContents()
             .filter(e => e.type === OntoumlType.CLASS_VIEW)
-            .forEach(classView => this.includeElement(this.allNodes, classView, model, false));
+            .forEach(classView => this.includeElement(this.allNodes, classView, model));
         
         diagram.getContents()
             .filter(e => (e.type === OntoumlType.RELATION_VIEW) || (e.type === OntoumlType.GENERALIZATION_VIEW))
             .forEach(relationView => {
-                const relation = this.includeElement(this.allRelations, relationView, model, true);
+                const relation = this.includeElement(this.allRelations, relationView, model);
                 let sourceId = (relationView.type === OntoumlType.RELATION_VIEW) 
                     ? (relation.element as Relation).properties[0].propertyType.id
                     : (relation.element as Generalization).specific.id;
@@ -51,7 +55,7 @@ export class ModelGraph {
         diagram.getContents()
             .filter(e => e.type === OntoumlType.GENERALIZATION_SET_VIEW)
             .forEach(genSetView => {
-                const node = this.includeElement(this.allRelations, genSetView, model, false);
+                const node = this.includeElement(this.allRelations, genSetView, model);
                 const generalizations = (node.element as GeneralizationSet).generalizations;
                 generalizations.forEach(relation  => {
                     this.createConnection(this.allRelations[relation.id], node);
@@ -61,7 +65,7 @@ export class ModelGraph {
             });
     }
 
-    updateRepresentationIds(element: DiagramElement, _hasSourceTarget: boolean): DiagramElement {
+    updateRepresentationIds(element: DiagramElement): DiagramElement {
         const newId = uniqid();
         this.idMap[element.id] = newId;
         element.id = newId;
@@ -81,11 +85,10 @@ export class ModelGraph {
         return element;
     }
 
-    includeElement(elementMap: {}, element: DiagramElement, model: Package, 
-        hasSourceTarget: boolean): ModelGraphNode {
+    includeElement(elementMap: {}, element: DiagramElement, model: Package): ModelGraphNode {
         // @ts-ignore
         let modelElement = element.modelElement;
-        element = this.updateRepresentationIds(element, hasSourceTarget);
+        element = this.updateRepresentationIds(element);
         if (this.idMap[modelElement.id]) {
             // add one more view to the relation/class that has been already processed
             modelElement = elementMap[this.idMap[modelElement.id]].element;
@@ -142,7 +145,7 @@ export class ModelGraph {
     }
 
     // --------------------------------------------------------------------------------
-    // ------------------------END OF: Export functions--------------------------------
+    // Auxiliary functions
     // --------------------------------------------------------------------------------
 
     getElementsByStereotypes(stereotypes: Stereotype[]): ModelGraphNode[] {
@@ -155,11 +158,80 @@ export class ModelGraph {
     }
 
     /**
-     * For debugging purposes only
+     * Removes relation node, all links to it, and all representations
+     * @param relation Relation to be removed
      */
+    removeRelation(relation: ModelGraphNode) {
+        console.log("Remove relation: " + relation.element.getName());
+        delete this.allRelations[relation.element.id];
+
+        // because of the generalization set, which has more than one incoming
+        relation.ins.forEach(inNode => inNode.removeOutRelation(relation));
+        relation.outs[0].removeInRelation(relation);
+
+        relation.representations.forEach(releationView => 
+            delete this.allViews[releationView.id]
+        );
+    }
+
+    /**
+     * Removes class node, and all links to/from it
+     * @param node Class to be removed
+     */
+    removeNode(node: ModelGraphNode) {
+        console.log("Remove node: " + node.element.getName());
+        delete this.allNodes[node.element.id];
+
+        node.ins.forEach(inRelation => this.removeRelation(inRelation));
+        node.outs.forEach(outRelation => this.removeRelation(outRelation));
+        
+        node.representations.forEach(nodeView => 
+            delete this.allViews[nodeView.id]
+        );
+            
+    }
+
+    /**
+     * Creates a copy of the given relation and moves it to new nodes
+     * Used for abstracting aspects
+     * @param prototype original relation
+     * @param fromNode node to be used as source
+     * @param toNode node to be used as target
+     */
+    duplicateRelation(prototype: ModelGraphNode, fromNode: ModelGraphNode, toNode: ModelGraphNode = null){
+        let newRelationNode = cloneDeep(prototype);
+        const newRelation = (newRelationNode.element as Relation);
+        const roleName = (newRelation.properties[0].getName()) 
+            ? newRelation.properties[0].getName() 
+            : newRelation.getName();
+        this.updateRepresentationIds(newRelationNode.representations[0]);
+        this.updateModelElementIds(newRelation)
+        this.allRelations[newRelation.id] = newRelationNode;
+        this.allViews[newRelationNode.representations[0].id] = newRelationNode.representations[0];
+
+        const stereotype = newRelation.stereotype;
+        if (stereotype) {
+            if (this.allStereotypes[stereotype]){
+                this.allStereotypes[stereotype].push(newRelationNode);
+            } else {
+                this.allStereotypes[stereotype] = [newRelationNode];
+            } 
+        }
+
+        if (!toNode) {
+            newRelationNode.moveRelationFrom(fromNode, "", false, true);
+            newRelation.properties[1].cardinality.setLowerBoundFromNumber(0);
+            newRelation.setName(fromNode.element.getName() + "'s " + roleName + " " + newRelation.getName());
+        } else {
+            newRelationNode.moveRelationFrom(fromNode, "", false, true);
+            newRelationNode.moveRelationTo(toNode, "", false, false, false, true);
+            newRelation.stereotype = RelationStereotype.PARTICIPATION;
+        }
+    }
+
     printNodeById(id: string) {
         console.log("Name: " + this.allNodes[id].element.getName());
-        console.log("No. ins: " + this.allNodes[id].ins.length);
-        console.log("No. outs: " + this.allNodes[id].outs.length);
+        console.log("No. of ins: " + this.allNodes[id].ins.length);
+        console.log("No. of outs: " + this.allNodes[id].outs.length);
     }
 }

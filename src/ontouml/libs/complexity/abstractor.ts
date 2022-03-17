@@ -4,7 +4,7 @@ import { ServiceIssue } from '@libs/service_issue';
 import { AbstractionOptions } from './options';
 import { AbstractionRules } from './abstraction_rules';
 import { cloneDeep } from 'lodash'
-import { ModelGraph } from ".";
+import { ModelGraph, AbstractionIssue } from ".";
 
 
 /**
@@ -22,6 +22,7 @@ export class Abstractor implements Service {
   graph: ModelGraph;
   abstraction: AbstractionRules;
   name: string;
+  issues: AbstractionIssue[];
 
   constructor(project: Project, options: Partial<AbstractionOptions>) {
     this.project = project;
@@ -33,7 +34,9 @@ export class Abstractor implements Service {
   }
 
   run(): { result: any; issues?: ServiceIssue[] } {
-    this.graph = this.buildAbstraction(this.options.activeElementId, this.options.abstractionRule);
+    const { graph, issues } = this.buildAbstraction(this.options.activeElementId, this.options.abstractionRule);
+    this.graph = graph;
+    this.issues = issues;
     const model = this.graph.exportModel(this.name);
     const diagram = this.graph.exportDiagram(this.name, model);
     this.project.model.contents.push(model);    
@@ -41,11 +44,11 @@ export class Abstractor implements Service {
 
     return {
       result: this.project,
-      issues: null,
+      issues: this.issues
     };
   }
 
-  buildAbstraction(activeElementId: string, abstractionRule: string): ModelGraph {
+  buildAbstraction(activeElementId: string, abstractionRule: string) {
     if (activeElementId) {
       const node = this.graph.allNodes[this.graph.idMap[activeElementId]];
       this.name = this.name + ": abstract " + node.element.getName();
@@ -55,7 +58,19 @@ export class Abstractor implements Service {
     console.log("Abstraction rule to be applied: " + abstractionRule);
     switch (abstractionRule) {
       case 'parthood':
-        this.name = this.name + ": abstraction parthood";
+        this.name = this.name + ": parthood abstraction";
+        return this.abstraction.parthood(
+          this.graph.getElementsByStereotypes(stereotypeUtils.PartWholeRelationStereotypes)
+        );
+      case 'hierarchy':
+        this.name = this.name + ": hierarchy abstraction";
+        // get generalization
+        // get generalization sets
+        // return this.abstraction.hierarchy(
+        //   this.graph.getElementsByStereotypes([])
+        // );
+        // OntoumlType.GENERALIZATION_VIEW
+        // OntoumlType.GENERALIZATION_SET_VIEW
         return this.abstraction.parthood(
           this.graph.getElementsByStereotypes(stereotypeUtils.PartWholeRelationStereotypes)
         );
