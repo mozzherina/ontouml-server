@@ -9,7 +9,5 @@ export class AbstractionOptions implements ServiceOptions {
     this.activeDiagramId = '';
 
     Object.keys(base).forEach(key => (this[key] = base[key]));
-
-    this.abstractionRule = 'parthood';
   }
 }

@@ -58,7 +58,7 @@ export class ModelGraphNode {
         
         // change link in properties section
         let propTo = (this.element as Relation).properties[1];
-        propTo.propertyType = newOut.element as Class;
+        propTo.propertyType = (newOut.element as Class);
 
         // set up cardinality
         if (resetCardinality) { propTo.cardinality.setZeroToMany(); }
@@ -113,7 +113,7 @@ export class ModelGraphNode {
         
         // change link in properties section
         let propFrom = (this.element as Relation).properties[0];
-        propFrom.propertyType = newIn.element as Class;
+        propFrom.propertyType = (newIn.element as Class);
 
         // set up cardinality
         if (resetCardinality) { propFrom.cardinality.setZeroToMany(); }

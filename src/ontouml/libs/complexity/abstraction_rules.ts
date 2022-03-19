@@ -81,58 +81,6 @@ export class AbstractionRules {
         }
     }
 
-    /**
-     * Remove views of the deleted classes/relations
-     * @param ids list of deleted ids
-     */
-    // deleteViews(ids: string[]) {
-    //     if (ids === []) return;
-
-    //     Object.keys(this.graph.allViews)?.forEach(viewId => {
-    //         const view = this.graph.allViews[viewId];
-    //         // ElementView is not working
-    //         // @ts-ignore
-    //         if (ids.includes(view.modelElement.id)) {
-    //             delete this.graph.allViews[viewId];
-    //         }
-    //     })
-    // }
-
-    /**
-     * Abstract from the given moment node.
-     * N.B. it is always possible, implements A1-A2 rules.
-     * @param graphNode aspect node to be abstracted
-     */
-    abstractAspect(graphNode: ModelGraphNode) {
-        const aspectRelations = graphNode.outs.filter(outRelation => {
-            const stereotype = (outRelation.element as Relation).stereotype;
-            return (stereotype === RelationStereotype.CHARACTERIZATION) 
-                || (stereotype === RelationStereotype.MEDIATION)
-        });
-
-        // if there is where to move
-        if (aspectRelations.length != 0){        
-            // list of endurants to which we are going to add relations
-            const endurants = aspectRelations.map(relation => relation.outs[0]);
-
-            graphNode.outs.forEach(outRelation => {
-                if (!aspectRelations.includes(outRelation) &&
-                    ((outRelation.element as Relation).stereotype != RelationStereotype.EXTERNAL_DEPENDENCE)) {
-                    endurants.forEach(endurant => this.graph.duplicateRelation(outRelation, endurant));
-                }
-            });
-
-            graphNode.ins.forEach(inRelation => {
-                if ((inRelation.element as Relation).stereotype === RelationStereotype.MANIFESTATION) {
-                    endurants.forEach(endurant => this.graph.duplicateRelation(inRelation, endurant, inRelation.ins[0]));
-                }
-            });
-        }
-
-        // remove this node with all relations
-        this.graph.removeNode(graphNode);
-    }
-
     // Try to go upwards or downwards or find a partof
     abstractType(graphNode: ModelGraphNode){
         // TODO: abstract from general node
@@ -189,9 +137,9 @@ export class AbstractionRules {
             case RelationStereotype.SUBCOLLECTION_OF:
             case RelationStereotype.SUBQUANTITY_OF:
                 const isReadOnly = (relation.element as Relation).properties[1].isReadOnly;
+                this.graph.removeRelation(relation);
                 this.processIns(partClass.ins, wholeClass, isReadOnly, name, roleName);
                 this.processOuts(partClass.outs, wholeClass, isReadOnly, name, roleName);                
-                this.graph.removeRelation(relation);
                 this.graph.removeNode(partClass);
                 break;
             case RelationStereotype.PARTICIPATIONAL:
@@ -214,12 +162,12 @@ export class AbstractionRules {
         inRelations.forEach(inRelation => {
             if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelation.ins[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
-                inRelation.moveRelationTo(wholeClass, roleName, false, false, true, true);
+                inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
                 (inRelation.element as Relation).properties[1].cardinality.setLowerBoundFromNumber(0);
             } else if (stereotypeUtils.isEventClassStereotype((inRelation.ins[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
                 if (((inRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
-                    inRelation.moveRelationTo(wholeClass, roleName, false, false, true, true);
+                    inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
                     (inRelation.element as Relation).properties[1].cardinality.setLowerBoundFromNumber(0);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
@@ -233,7 +181,7 @@ export class AbstractionRules {
                     }
                     inRelation.element.setName(name);
                 }   
-                inRelation.moveRelationTo(wholeClass, roleName, false, false, true, true);
+                inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
                 (inRelation.element as Relation).properties[1].cardinality.setLowerBoundFromNumber(0);
             }
         })
@@ -264,7 +212,7 @@ export class AbstractionRules {
                     outRelation.element.setName(name);
                 }
                 outRelation.moveRelationFrom(wholeClass, roleName, false, false, false, true);
-                (outRelation.element as Relation).properties[0].cardinality.setUpperBoundFromNumber(1);
+                (outRelation.element as Relation).properties[0].cardinality.setUpperBoundFromNumber(1); 
             }
         })
     }
@@ -285,6 +233,7 @@ export class AbstractionRules {
         // and it is disjoint and complete...
 
         generalizations?.forEach(generalization => this.processGeneralization(generalization));
+        return { graph: this.graph, issues: this.issues}; 
     }
 
     processGeneralization(generalization: ModelGraphNode){
@@ -310,6 +259,58 @@ export class AbstractionRules {
         
         this.graph.removeRelation(generalization);
         this.graph.removeNode(specificClass);
-    } 
+    }
+
+    // --------------------------------------------------------------------------------
+    // Abstracting aspects functions
+    // --------------------------------------------------------------------------------
+    /**
+     * Given a list of aspects, abstract from them
+     * @param moments list of aspect nodes
+     */
+     aspects(moments: ModelGraphNode[]) {
+        console.log("Number of aspects: " + moments.length);
+        
+        moments?.forEach(moment => this.abstractAspect(moment));
+
+        return { graph: this.graph, issues: this.issues };
+    }
+
+    /**
+    * Abstract from the given moment node.
+    * N.B. it is always possible, implements A1-A2 rules.
+    * @param graphNode aspect node to be abstracted
+    */
+    abstractAspect(graphNode: ModelGraphNode) {
+        this.foldNode(graphNode);
+
+        const aspectRelations = graphNode.outs.filter(outRelation => {
+            const stereotype = (outRelation.element as Relation).stereotype;
+            return (stereotype === RelationStereotype.CHARACTERIZATION) 
+                || (stereotype === RelationStereotype.MEDIATION)
+        });
+
+        // if there is where to move
+        if (aspectRelations.length != 0){        
+            // list of endurants to which we are going to add relations
+            const endurants = aspectRelations.map(relation => relation.outs[0]);
+
+            graphNode.outs.forEach(outRelation => {
+                if (!aspectRelations.includes(outRelation) &&
+                    ((outRelation.element as Relation).stereotype != RelationStereotype.EXTERNAL_DEPENDENCE)) {
+                    endurants.forEach(endurant => this.graph.duplicateRelation(outRelation, endurant));
+                }
+            });
+
+            graphNode.ins.forEach(inRelation => {
+                if ((inRelation.element as Relation).stereotype === RelationStereotype.MANIFESTATION) {
+                    endurants.forEach(endurant => this.graph.duplicateRelation(inRelation, endurant, inRelation.ins[0]));
+                }
+            });
+        }
+
+        // remove this node with all relations
+        this.graph.removeNode(graphNode);
+    }
     
 }

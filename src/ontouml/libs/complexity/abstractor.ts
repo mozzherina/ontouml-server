@@ -1,4 +1,4 @@
-import { Project, stereotypeUtils } from '@libs/ontouml'; 
+import { Project, stereotypeUtils, OntoumlType } from '@libs/ontouml'; 
 import { Service } from '@libs/service';
 import { ServiceIssue } from '@libs/service_issue';
 import { AbstractionOptions } from './options';
@@ -31,12 +31,18 @@ export class Abstractor implements Service {
     this.name = diagram.getName();
     this.graph = new ModelGraph(cloneDeep(this.project.model), cloneDeep(diagram));
     this.abstraction = new AbstractionRules(this.graph);
+    // debug
+    this.graph.printGraph();
+    // -----
   }
 
   run(): { result: any; issues?: ServiceIssue[] } {
     const { graph, issues } = this.buildAbstraction(this.options.activeElementId, this.options.abstractionRule);
     this.graph = graph;
     this.issues = issues;
+    // debug
+    this.graph.printGraph();
+    // -----
     const model = this.graph.exportModel(this.name);
     const diagram = this.graph.exportDiagram(this.name, model);
     this.project.model.contents.push(model);    
@@ -64,19 +70,18 @@ export class Abstractor implements Service {
         );
       case 'hierarchy':
         this.name = this.name + ": hierarchy abstraction";
-        // get generalization
-        // get generalization sets
-        // return this.abstraction.hierarchy(
-        //   this.graph.getElementsByStereotypes([])
-        // );
-        // OntoumlType.GENERALIZATION_VIEW
-        // OntoumlType.GENERALIZATION_SET_VIEW
-        return this.abstraction.parthood(
-          this.graph.getElementsByStereotypes(stereotypeUtils.PartWholeRelationStereotypes)
+        return this.abstraction.hierarchy(
+          this.graph.getRelationsByType(OntoumlType.GENERALIZATION_TYPE),
+          this.graph.getRelationsByType(OntoumlType.GENERALIZATION_SET_TYPE)
+        );
+      case 'aspects':
+        this.name = this.name + ": moments abstraction";
+        return this.abstraction.aspects(
+          this.graph.getElementsByStereotypes(stereotypeUtils.MomentOnlyStereotypes)
         );
     }
 
     console.warn("No abstraction was build");
-    return null;
+    return { graph: this.graph, issues: this.issues };
   }
 }
