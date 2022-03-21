@@ -6,9 +6,9 @@ export class ModelGraphNode {
     ins: ModelGraphNode[];
     outs: ModelGraphNode[];
 
-    constructor(element: ModelElement, representation: DiagramElement) {
+    constructor(element: ModelElement, representation: DiagramElement[]) {
         this.element = element;
-        this.representations = [representation];
+        this.representations = representation;
         this.ins = [];
         this.outs = [];
     }

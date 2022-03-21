@@ -85,7 +85,7 @@ export class ModelGraph {
         } else {
             // create new class/relation node
             modelElement = this.updateModelElementIds(model.getElementById(modelElement.id));
-            const newNode = new ModelGraphNode(modelElement as ModelElement, element);
+            const newNode = new ModelGraphNode(modelElement as ModelElement, [element]);
             elementMap[modelElement.id] = newNode;
             // @ts-ignore
             const stereotype = newNode.element.stereotype;
@@ -188,9 +188,6 @@ export class ModelGraph {
      * @param relation Relation to be removed
      */
     removeRelation(relation: ModelGraphNode) {
-        console.log("Remove relation: " + relation.element.getName());
-        delete this.allRelations[relation.element.id];
-
         // because of the generalization set, which has more than one incoming
         relation.ins.forEach(inNode => inNode.removeOutRelation(relation));
         relation.outs[0].removeInRelation(relation);
@@ -198,6 +195,11 @@ export class ModelGraph {
         relation.representations.forEach(releationView => 
             delete this.allViews[releationView.id]
         );
+
+        console.log("Remove relation: " + relation.element.getName());
+        delete this.allRelations[relation.element.id];
+
+        this.printRelations();
     }
 
     /**
@@ -205,16 +207,16 @@ export class ModelGraph {
      * @param node Class to be removed
      */
     removeNode(node: ModelGraphNode) {
-        console.log("Remove node: " + node.element.getName());
-        delete this.allNodes[node.element.id];
-
-        node.ins.forEach(inRelation => this.removeRelation(inRelation));
-        node.outs.forEach(outRelation => this.removeRelation(outRelation));
+        [...node.ins].forEach(inRelation => this.removeRelation(inRelation));
+        [...node.outs].forEach(outRelation => this.removeRelation(outRelation));
         
         node.representations.forEach(nodeView => 
             delete this.allViews[nodeView.id]
         );
-            
+
+        console.log("Remove node: " + node.element.getName());
+        delete this.allNodes[node.element.id];
+        this.printGraph();            
     }
 
     /**
@@ -224,34 +226,48 @@ export class ModelGraph {
      * @param fromNode node to be used as source
      * @param toNode node to be used as target
      */
-    duplicateRelation(prototype: ModelGraphNode, fromNode: ModelGraphNode, toNode: ModelGraphNode = null){
-        let newRelationNode = cloneDeep(prototype);
-        const newRelation = (newRelationNode.element as Relation);
-        const roleName = (newRelation.properties[0].getName()) 
-            ? newRelation.properties[0].getName() 
-            : newRelation.getName();
-        this.updateRepresentationIds(newRelationNode.representations[0]);
-        this.updateModelElementIds(newRelation)
-        this.allRelations[newRelation.id] = newRelationNode;
-        this.allViews[newRelationNode.representations[0].id] = newRelationNode.representations[0];
+    duplicateRelation(prototype: ModelGraphNode, fromNode: ModelGraphNode, toNode: ModelGraphNode = undefined){
+        let relationNode = new ModelGraphNode(
+            this.updateModelElementIds(cloneDeep(prototype.element)) as ModelElement, 
+            cloneDeep(prototype.representations)
+        );
+        (relationNode.representations[0] as RelationView).modelElement = relationNode.element as Relation;
+        this.updateRepresentationIds(relationNode.representations[0]);
+        
+        // update in and out links
+        relationNode.ins.push(prototype.ins[0]);
+        relationNode.outs.push(prototype.outs[0]);
+        relationNode.ins[0].outs.push(relationNode);
+        relationNode.outs[0].ins.push(relationNode);
+        
+        const relation = (relationNode.element as Relation);
+        const roleName = (relation.properties[0].getName()) 
+            ? relation.properties[0].getName() 
+            : relationNode.ins[0].element.getName();
 
-        const stereotype = newRelation.stereotype;
+        
+        // add to all lists
+        this.allRelations[relation.id] = relationNode;
+        relationNode.representations.forEach(representation => 
+            this.allViews[representation.id] = representation
+        );
+        const stereotype = relation.stereotype;
         if (stereotype) {
             if (this.allStereotypes[stereotype]){
-                this.allStereotypes[stereotype].push(newRelationNode);
+                this.allStereotypes[stereotype].push(relationNode);
             } else {
-                this.allStereotypes[stereotype] = [newRelationNode];
+                this.allStereotypes[stereotype] = [relationNode];
             } 
         }
 
         if (!toNode) {
-            newRelationNode.moveRelationFrom(fromNode, "", false, true);
-            newRelation.properties[1].cardinality.setLowerBoundFromNumber(0);
-            newRelation.setName(fromNode.element.getName() + "'s " + roleName + " " + newRelation.getName());
+            relationNode.moveRelationFrom(fromNode, "", false, true);
+            relation.properties[1].cardinality.setLowerBoundFromNumber(0);
+            relation.setName(fromNode.element.getName() + "'s " + roleName + " " + relation.getName());
         } else {
-            newRelationNode.moveRelationFrom(fromNode, "", false, true);
-            newRelationNode.moveRelationTo(toNode, "", false, false, false, true);
-            newRelation.stereotype = RelationStereotype.PARTICIPATION;
+            relationNode.moveRelationFrom(fromNode, "", false, true);
+            relationNode.moveRelationTo(toNode, "", false, false, false, true);
+            relation.stereotype = RelationStereotype.PARTICIPATION;
         }
     }
 

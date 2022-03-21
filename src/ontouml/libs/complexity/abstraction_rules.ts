@@ -307,6 +307,7 @@ export class AbstractionRules {
                     endurants.forEach(endurant => this.graph.duplicateRelation(inRelation, endurant, inRelation.ins[0]));
                 }
             });
+
         }
 
         // remove this node with all relations
