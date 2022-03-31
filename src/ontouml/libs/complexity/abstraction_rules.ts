@@ -1,5 +1,5 @@
 import { ModelGraph, ModelGraphNode, AbstractionIssue } from ".";
-import { Class, RelationStereotype, Property, Relation, stereotypeUtils, ClassView, OntoumlType, OntoumlElement } from "@libs/ontouml";
+import { Class, RelationStereotype, Property, Relation, stereotypeUtils, ClassView, OntoumlType, OntoumlElement, AggregationKind } from "@libs/ontouml";
 import uniqid from 'uniqid';
 
 
@@ -48,10 +48,17 @@ export class AbstractionRules {
      * @param graphNode node to be processed
      */
     foldNode(graphNode: ModelGraphNode) {
+        // debug
+        console.log("Converges node: " + graphNode.element.getName());
+        // -----
+
         // abstract from parts
         const partRelations = graphNode.ins.filter(inRelation => 
-            stereotypeUtils.PartWholeRelationStereotypes.includes((inRelation.element as Relation).stereotype)
-        )
+                // TODO: remove this, when error with composition ends is fixed
+                stereotypeUtils.PartWholeRelationStereotypes.includes((inRelation.element as Relation).stereotype) 
+                // TODO: change this to 1, when error with composition ends is fixed
+                || (inRelation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE
+            );
         this.parthood(partRelations);
 
         // abstract from generalizations and generalization sets
@@ -60,6 +67,10 @@ export class AbstractionRules {
         const sets = graphNode.ins.filter(inRelation =>
             inRelation.element.type === OntoumlType.GENERALIZATION_SET_VIEW);
         this.hierarchy(generalizations, sets);
+
+        // debug
+        console.log("End processing node: " + graphNode.element.getName());
+        // -----
     }
 
     /**
@@ -112,7 +123,9 @@ export class AbstractionRules {
     processParthood(relation: ModelGraphNode){
         const wholeClass = relation.outs[0];
         const partClass = relation.ins[0];
-        const stereotype = (relation.element as Relation).stereotype;
+        let stereotype = (relation.element as Relation).stereotype;
+        // for normal partOf
+        if (!stereotype) { stereotype = RelationStereotype.SUBQUANTITY_OF; }
         let name = undefined;
         let roleName = partClass.element.getName();
 
@@ -163,12 +176,12 @@ export class AbstractionRules {
             if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelation.ins[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
                 inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
-                (inRelation.element as Relation).properties[1].cardinality.setLowerBoundFromNumber(0);
+                (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
             } else if (stereotypeUtils.isEventClassStereotype((inRelation.ins[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
                 if (((inRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
                     inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
-                    (inRelation.element as Relation).properties[1].cardinality.setLowerBoundFromNumber(0);
+                    (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
                     this.graph.removeRelation(inRelation);
@@ -182,7 +195,7 @@ export class AbstractionRules {
                     inRelation.element.setName(name);
                 }   
                 inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
-                (inRelation.element as Relation).properties[1].cardinality.setLowerBoundFromNumber(0);
+                (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
             }
         })
     }
@@ -296,8 +309,11 @@ export class AbstractionRules {
             const endurants = aspectRelations.map(relation => relation.outs[0]);
 
             graphNode.outs.forEach(outRelation => {
-                if (!aspectRelations.includes(outRelation) &&
-                    ((outRelation.element as Relation).stereotype != RelationStereotype.EXTERNAL_DEPENDENCE)) {
+                if (!aspectRelations.includes(outRelation) 
+                    && ((outRelation.element as Relation).stereotype != RelationStereotype.EXTERNAL_DEPENDENCE)
+                    && !stereotypeUtils.isEventClassStereotype((outRelation.outs[0].element as Class).stereotype)
+                    && !stereotypeUtils.isSituationClassStereotype((outRelation.outs[0].element as Class).stereotype)
+                ) {
                     endurants.forEach(endurant => this.graph.duplicateRelation(outRelation, endurant));
                 }
             });

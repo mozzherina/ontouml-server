@@ -65,9 +65,7 @@ export class Abstractor implements Service {
     switch (abstractionRule) {
       case 'parthood':
         this.name = this.name + ": parthood abstraction";
-        return this.abstraction.parthood(
-          this.graph.getElementsByStereotypes(stereotypeUtils.PartWholeRelationStereotypes)
-        );
+        return this.abstraction.parthood(this.graph.getPartOfRelations());
       case 'hierarchy':
         this.name = this.name + ": hierarchy abstraction";
         return this.abstraction.hierarchy(

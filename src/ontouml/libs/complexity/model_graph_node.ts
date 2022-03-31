@@ -1,4 +1,11 @@
-import { DiagramElement, ModelElement, Relation, Class, RelationView, ClassView, Point } from "@libs/ontouml";
+import { DiagramElement, ModelElement, Relation, Class, RelationView, ClassView, Point, Property } from "@libs/ontouml";
+
+export enum CardinalityOptions {
+    NONE,
+    RESET,
+    SET_UPPER_1,
+    SET_LOWER_0
+}
 
 export class ModelGraphNode {
     element: ModelElement;
@@ -36,38 +43,55 @@ export class ModelGraphNode {
     }
 
     /**
-     * Moves relation to a new target, also changes cardinality on this side
+     * Set up cardinality for relation end
+     * @param relationEnd relation end's properties
+     * @param cardinalityOpt cardinality options changes
+     */
+    setCardinality(relationEnd: Property, cardinalityOpt: CardinalityOptions) {
+        switch (cardinalityOpt) {
+            case CardinalityOptions.RESET:
+                relationEnd.cardinality.setZeroToMany();
+                break;
+            case CardinalityOptions.SET_UPPER_1:
+                if (relationEnd.cardinality.getUpperBoundAsNumber() > 1) {
+                    relationEnd.cardinality.setUpperBoundFromNumber(1);
+                }
+                break;
+            case CardinalityOptions.SET_LOWER_0:
+                if (relationEnd.cardinality.getLowerBoundAsNumber() > 0) {
+                    relationEnd.cardinality.setLowerBoundFromNumber(0);
+                }
+                break;
+        }
+    }
+
+    /**
+     * Moves relation to a new target, also changes cardinality
      * @param newOut new target class
      * @param roleName role name for target class
      * @param keepOldRole if true the existing role would be kept
-     * @param resetCardinality set cardinality to *
-     * @param setUpperCardinality set upper cardinality to 1
-     * @param relaxLowerCardinality set lower cardinality to 0
+     * @param cardinalityTo change 'to' cardinality
+     * @param cardinalityFrom change 'from' cardinality
      */
     moveRelationTo(
         newOut: ModelGraphNode, 
         roleName: string = undefined, 
         keepOldRole: boolean = true,
-        resetCardinality: boolean = false,
-        setUpperCardinality: boolean = false, 
-        relaxLowerCardinality: boolean = false
+        cardinalityTo = CardinalityOptions.NONE,
+        cardinalityFrom = CardinalityOptions.NONE
     ) {
         this.outs[0].removeInRelation(this);
         this.outs[0] =  newOut;
         newOut.ins.push(this);
         
         // change link in properties section
+        let propFrom = (this.element as Relation).properties[0];
         let propTo = (this.element as Relation).properties[1];
         propTo.propertyType = (newOut.element as Class);
 
         // set up cardinality
-        if (resetCardinality) { propTo.cardinality.setZeroToMany(); }
-        if (setUpperCardinality && (propTo.cardinality.getUpperBoundAsNumber() > 1)) {
-            propTo.cardinality.setUpperBoundFromNumber(1);
-        }
-        if (relaxLowerCardinality && (propTo.cardinality.getLowerBoundAsNumber() > 0)) {
-            propTo.cardinality.setLowerBoundFromNumber(0);
-        }
+        this.setCardinality(propFrom, cardinalityFrom);
+        this.setCardinality(propTo, cardinalityTo);
 
         // add role name if given
         if (roleName != undefined) {
@@ -95,17 +119,15 @@ export class ModelGraphNode {
      * @param newIn new source class
      * @param roleName role name for target class
      * @param keepOldRole if true the existing role would be kept
-     * @param resetCardinality set cardinality to *
-     * @param setUpperCardinality set upper cardinality to 1
-     * @param relaxLowerCardinality set lower cardinality to 0
+     * @param cardinalityFrom change 'from' cardinality
+     * @param cardinalityTo change 'to' cardinality
      */
     moveRelationFrom(
         newIn: ModelGraphNode, 
         roleName: string = undefined, 
         keepOldRole: boolean = true,
-        resetCardinality: boolean = false,
-        setUpperCardinality: boolean = false, 
-        relaxLowerCardinality: boolean = false
+        cardinalityFrom = CardinalityOptions.NONE,
+        cardinalityTo = CardinalityOptions.NONE
     ) {
         this.ins[0].removeOutRelation(this);
         this.ins[0] =  newIn;
@@ -114,15 +136,11 @@ export class ModelGraphNode {
         // change link in properties section
         let propFrom = (this.element as Relation).properties[0];
         propFrom.propertyType = (newIn.element as Class);
+        let propTo = (this.element as Relation).properties[1];
 
         // set up cardinality
-        if (resetCardinality) { propFrom.cardinality.setZeroToMany(); }
-        if (setUpperCardinality && (propFrom.cardinality.getUpperBoundAsNumber() > 1)) {
-            propFrom.cardinality.setUpperBoundFromNumber(1);
-        }
-        if (relaxLowerCardinality && (propFrom.cardinality.getLowerBoundAsNumber() > 0)) {
-            propFrom.cardinality.setLowerBoundFromNumber(0);
-        }
+        this.setCardinality(propFrom, cardinalityFrom);
+        this.setCardinality(propTo, cardinalityTo);
 
         // add role name if given
         if (roleName != undefined) {

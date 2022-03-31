@@ -10,7 +10,7 @@ import {
   logRequestConcluded,
 } from './utils';
 import { Project, Abstractor } from '../ontouml';
-import fs from 'fs'
+import fs from 'fs';
 
 export default async function(request: express.Request, response: express.Response, _next: express.NextFunction) {
   try {
@@ -29,7 +29,7 @@ export default async function(request: express.Request, response: express.Respon
       fs.writeFile('E:/Work/PhD/json_result.json', JSONoutput, err => {
         if (err) {
           console.error(err);
-          return
+          return;
         }
       });
       logRequestConcluded(statusCode);

@@ -1,8 +1,9 @@
 import { ModelGraphNode } from ".";
 import { Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, 
-    OntoumlType, Package, Relation, Stereotype, RelationStereotype, RelationView, ClassView } from "@libs/ontouml";
+    OntoumlType, Package, Relation, Stereotype, RelationStereotype, RelationView, ClassView, AggregationKind } from "@libs/ontouml";
 import uniqid from 'uniqid';
 import { cloneDeep } from 'lodash'
+import { CardinalityOptions } from "./model_graph_node";
 
 interface IElement {
     [id: string]: ModelGraphNode;
@@ -21,19 +22,7 @@ export class ModelGraph {
 
     // --------------------------------------------------------------------------------
     // Construction functions
-    // --------------------------------------------------------------------------------
-
-    // TODO: delete when error with aggregation is fixed
-    /*
-    if ((relationView.type === OntoumlType.RELATION_VIEW) && 
-        ((relation.element as Relation).properties[1]
-            .aggregationKind === AggregationKind.COMPOSITE)) {
-            const id = sourceId;
-            sourceId = targetId;
-            targetId = id;
-        }
-    */
-    
+    // --------------------------------------------------------------------------------    
     constructor(model: Package, diagram: Diagram) {
         this.allStereotypes = {};
         this.idMap = {};
@@ -48,6 +37,15 @@ export class ModelGraph {
                 const relation = this.includeElement(this.allRelations, relationView, model);
                 let sourceId = ((relationView as RelationView).source as ClassView).modelElement.id;
                 let targetId = ((relationView as RelationView).target as ClassView).modelElement.id;
+                
+                // TODO: delete when error with aggregation is fixed
+                if ((relationView.type === OntoumlType.RELATION_VIEW) && 
+                    ((relation.element as Relation).properties[0]
+                        .aggregationKind === AggregationKind.COMPOSITE)) {
+                    const id = sourceId;
+                    sourceId = targetId;
+                    targetId = id;
+                }
                 this.createConnection(this.allNodes[sourceId], relation);
                 this.createConnection(relation, this.allNodes[targetId]);   
             });
@@ -134,6 +132,11 @@ export class ModelGraph {
         return element;
     }
 
+    /**
+     * Creates connection between nodes
+     * @param source from node
+     * @param target to node
+     */
     createConnection(source: ModelGraphNode, target: ModelGraphNode) {
         source.outs.push(target);
         target.ins.push(source); 
@@ -159,7 +162,7 @@ export class ModelGraph {
         diagram.id = uniqid();
         diagram.setName(name);
         diagram.owner = owner;
-        // TODO: fix if possible, the next line doesn't help
+        // TODO: fix if possible
         // @ts-ignore
         diagram.contents = Object.values(this.allViews);
         return diagram;
@@ -183,23 +186,38 @@ export class ModelGraph {
             .filter(relation => relation.element.type === type) || [];
     }
 
+    getPartOfRelations(): ModelGraphNode[] {
+        return Object.values(this.allRelations)
+            .filter(relationNode => {
+                const relation = relationNode.element as Relation;
+                return (relation.properties[0].aggregationKind === AggregationKind.COMPOSITE)
+                    || (relation.properties[1].aggregationKind === AggregationKind.COMPOSITE)
+            }) || [];
+    }
+
     /**
      * Removes relation node, all links to it, and all representations
      * @param relation Relation to be removed
      */
     removeRelation(relation: ModelGraphNode) {
-        // because of the generalization set, which has more than one incoming
-        relation.ins.forEach(inNode => inNode.removeOutRelation(relation));
-        relation.outs[0].removeInRelation(relation);
+        // in case the relation has been already processed
+        if (relation){
+            // because of the generalization set, which has more than one incoming
+            relation.ins.forEach(inNode => inNode.removeOutRelation(relation));
+            relation.outs[0].removeInRelation(relation);
 
-        relation.representations.forEach(releationView => 
-            delete this.allViews[releationView.id]
-        );
+            relation.representations.forEach(releationView => 
+                delete this.allViews[releationView.id]
+            );
 
-        console.log("Remove relation: " + relation.element.getName());
-        delete this.allRelations[relation.element.id];
-
-        this.printRelations();
+            console.log("Remove relation: ");
+            this.printRelationById(relation.element.id);
+            delete this.allRelations[relation.element.id];
+        }
+    
+        // debug
+        // this.printRelations();
+        // -----
     }
 
     /**
@@ -215,8 +233,7 @@ export class ModelGraph {
         );
 
         console.log("Remove node: " + node.element.getName());
-        delete this.allNodes[node.element.id];
-        this.printGraph();            
+        delete this.allNodes[node.element.id];           
     }
 
     /**
@@ -241,7 +258,7 @@ export class ModelGraph {
         relationNode.outs[0].ins.push(relationNode);
         
         const relation = (relationNode.element as Relation);
-        const roleName = (relation.properties[0].getName()) 
+        let roleName = (relation.properties[0].getName()) 
             ? relation.properties[0].getName() 
             : relationNode.ins[0].element.getName();
 
@@ -261,12 +278,14 @@ export class ModelGraph {
         }
 
         if (!toNode) {
-            relationNode.moveRelationFrom(fromNode, "", false, true);
-            relation.properties[1].cardinality.setLowerBoundFromNumber(0);
-            relation.setName(fromNode.element.getName() + "'s " + roleName + " " + relation.getName());
+            relationNode.moveRelationFrom(fromNode, "", false, CardinalityOptions.RESET, CardinalityOptions.SET_LOWER_0);
+            if (relation.getName()){
+                roleName =  roleName + " " + relation.getName();
+            }
+            relation.setName(fromNode.element.getName() + "'s " + roleName);
         } else {
-            relationNode.moveRelationFrom(fromNode, "", false, true);
-            relationNode.moveRelationTo(toNode, "", false, false, false, true);
+            relationNode.moveRelationFrom(fromNode, "", false, CardinalityOptions.RESET);
+            relationNode.moveRelationTo(toNode, "", false, CardinalityOptions.SET_LOWER_0);
             relation.stereotype = RelationStereotype.PARTICIPATION;
         }
     }
@@ -302,10 +321,12 @@ export class ModelGraph {
     }
 
     printGraph() {
+        console.log("----Print graph----");
         console.log("No. of nodes " + Object.keys(this.allNodes).length);
         this.printNodes();
         console.log("No. of relations " + Object.keys(this.allRelations).length);
         this.printRelations();
+        console.log("-------------------");
         
     }
 }
