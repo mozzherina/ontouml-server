@@ -1,13 +1,16 @@
 import { ModelGraph, ModelGraphNode, AbstractionIssue } from ".";
-import { Class, RelationStereotype, Property, Relation, stereotypeUtils, ClassView, OntoumlType, OntoumlElement, AggregationKind } from "@libs/ontouml";
+import { Class, RelationStereotype, Property, Relation, stereotypeUtils, ClassView, OntoumlType, AggregationKind } from "@libs/ontouml";
 import uniqid from 'uniqid';
+import { CardinalityOptions } from "./model_graph_node";
 
 
 /**
  * Class that implements abstraction algorithm proposed in:
  *
  * Romanenko, E., Calvanese, D. and Guizzardi, G. (2022)
- * Ontology-Based Model Abstraction Reviewed.
+ * Abstracting Ontology-Driven Conceptual Models:
+ * Objects, Aspects, Events, and their Parts
+ * In: Proc. of Int. Conf. on Research Challenges in Inf. Sc. (RCIS'22)
  *
  * @author Elena Romanenko
  */
@@ -18,10 +21,12 @@ const PROPERTY_HEIGHT = 10;
 export class AbstractionRules {
     graph: ModelGraph;
     issues: AbstractionIssue[];
+    folded: ModelGraphNode[];
     
     constructor(graph: ModelGraph) {
         this.graph = graph;
         this.issues = [];
+        this.folded = [];  
     }
 
     // --------------------------------------------------------------------------------
@@ -36,8 +41,9 @@ export class AbstractionRules {
     abstract(graphNode: ModelGraphNode) {
         // converge the node
         this.foldNode(graphNode);
+        // TODO: decide if this is needed
         // if possible, abstract from it
-        this.abstractNode(graphNode);
+        // this.abstractNode(graphNode);
         // return updated graph
         return { graph: this.graph, issues: this.issues };
     }
@@ -48,6 +54,8 @@ export class AbstractionRules {
      * @param graphNode node to be processed
      */
     foldNode(graphNode: ModelGraphNode) {
+        if (this.folded.lastIndexOf(graphNode) > -1) { return; }
+        
         // debug
         console.log("Converges node: " + graphNode.element.getName());
         // -----
@@ -57,7 +65,8 @@ export class AbstractionRules {
                 // TODO: remove this, when error with composition ends is fixed
                 stereotypeUtils.PartWholeRelationStereotypes.includes((inRelation.element as Relation).stereotype) 
                 // TODO: change this to 1, when error with composition ends is fixed
-                || (inRelation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE
+                // TODO: check if properties is defined
+                || (inRelation.element as Relation).properties[0].aggregationKind != AggregationKind.NONE
             );
         this.parthood(partRelations);
 
@@ -71,35 +80,36 @@ export class AbstractionRules {
         // debug
         console.log("End processing node: " + graphNode.element.getName());
         // -----
+
+        this.folded.push(graphNode);
     }
 
     /**
      * Try to abstract from the given node
      * @param graphNode node to be processed
      */
-    abstractNode(graphNode: ModelGraphNode) {
-        console.log("Abstract from: " + graphNode.element.getName());
-        
-        // if this node doesn't have any relations, then just delete it
-        if ((graphNode.ins.length === 0) && (graphNode.outs.length === 0)) {
-            this.graph.removeNode(graphNode);
-        } else if (stereotypeUtils.MomentOnlyStereotypes.includes((graphNode.element as Class).stereotype)) {
-            // abstract from Moment
-            this.abstractAspect(graphNode);
-        } else {
-            // abstract from Event or normal Type
-            this.abstractType(graphNode);
-        }
-    }
+    // abstractNode(graphNode: ModelGraphNode) {
+    //     console.log("Abstract from: " + graphNode.element.getName());
+    //     // if this node doesn't have any relations, then just delete it
+    //     if ((graphNode.ins.length === 0) && (graphNode.outs.length === 0)) {
+    //         this.graph.removeNode(graphNode);
+    //     } else if (stereotypeUtils.MomentOnlyStereotypes.includes((graphNode.element as Class).stereotype)) {
+    //         // abstract from Moment
+    //         this.abstractAspect(graphNode);
+    //     } else {
+    //         // abstract from Event or normal Type
+    //         this.abstractType(graphNode);
+    //     }
+    // }
 
     // Try to go upwards or downwards or find a partof
-    abstractType(graphNode: ModelGraphNode){
-        // TODO: abstract from general node
-        this.issues.push(new AbstractionIssue(
-            graphNode.element as OntoumlElement, 
-            "Abstraction from " + graphNode.element.getName() + " is not possible."
-        ));
-    }
+    // abstractType(graphNode: ModelGraphNode){
+    //     // TODO: abstract from general node
+    //     this.issues.push(new AbstractionIssue(
+    //         graphNode.element as OntoumlElement, 
+    //         "Abstraction from " + graphNode.element.getName() + " is not possible."
+    //     ));
+    // }
 
     // --------------------------------------------------------------------------------
     // Abstracting parthood functions
@@ -111,6 +121,7 @@ export class AbstractionRules {
     parthood(relations: ModelGraphNode[]) {
         console.log("Number of parthood relations: " + relations.length);
         
+        // list of processed nodes
         relations?.forEach(relation => this.processParthood(relation));
 
         return { graph: this.graph, issues: this.issues };
@@ -120,7 +131,7 @@ export class AbstractionRules {
      * Parthood relation abstraction, tries to remove PartClass
      * @param relation parthood relation
      */
-    processParthood(relation: ModelGraphNode){
+    processParthood(relation: ModelGraphNode) {
         const wholeClass = relation.outs[0];
         const partClass = relation.ins[0];
         let stereotype = (relation.element as Relation).stereotype;
@@ -131,7 +142,7 @@ export class AbstractionRules {
 
         // converge part node, n.b. it is a recursive call
         this.foldNode(partClass);
-        
+
         switch (stereotype) {
             case RelationStereotype.COMPONENT_OF:
                 // make partClass a property of wholeClass
@@ -147,6 +158,7 @@ export class AbstractionRules {
                 roleName = undefined;
                 // but be aware of relation name
                 name = wholeClass.element.getName() + "'s " + partClass.element.getName() + " ";
+                // and continue to move relations
             case RelationStereotype.SUBCOLLECTION_OF:
             case RelationStereotype.SUBQUANTITY_OF:
                 const isReadOnly = (relation.element as Relation).properties[1].isReadOnly;
@@ -164,72 +176,115 @@ export class AbstractionRules {
     }
 
     /**
-     * 
+     * Move incoming relation to the WholeClass
      * N.B. by the time of calling relations are 'normal' relations only, no generalizations and no generalization sets
      * @param inRelations list of incoming relations
+     * @param wholeClass link to the WholeClass
+     * @param isReadOnly check if partClass was mandatory
      * @param name WholeClass's PartClass
      * @param roleName PartClass name
      */
     processIns(inRelations: ModelGraphNode[], wholeClass: ModelGraphNode, 
                isReadOnly: boolean, name: string, roleName: string){
-        inRelations.forEach(inRelation => {
-            if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelation.ins[0].element as Class).stereotype)) {
+        while (inRelations.length > 0) {
+        //inRelations.forEach(inRelation => {
+            if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelations[0].ins[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
-                inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
-                (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
-            } else if (stereotypeUtils.isEventClassStereotype((inRelation.ins[0].element as Class).stereotype)) {
+                inRelations[0].moveRelationTo(wholeClass, roleName, 
+                        false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+            } else if (stereotypeUtils.isEventClassStereotype((inRelations[0].ins[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
-                if (((inRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
-                    inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
-                    (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
+                if (((inRelations[0].element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
+                    inRelations[0].moveRelationTo(wholeClass, roleName, 
+                            false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
-                    this.graph.removeRelation(inRelation);
+                    this.graph.removeRelation(inRelations[0]);
                 }
             } else {
                 // relation comes from any general class 
                 if (name) {
-                    if (inRelation.element.getName()) {
-                        name =  name + inRelation.element.getName();
+                    if (inRelations[0].element.getName()) {
+                        name =  name + inRelations[0].element.getName();
                     }
-                    inRelation.element.setName(name);
+                    inRelations[0].element.setName(name);
                 }   
-                inRelation.moveRelationTo(wholeClass, roleName, false, false, true);
-                (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
+                inRelations[0].moveRelationTo(wholeClass, roleName, 
+                        false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             }
-        })
+        } //)
     }
 
+    /**
+     * Move outcoming relation to the WholeClass
+     * N.B. by the time of calling relations are 'normal' relations only, no generalizations and no generalization sets
+     * @param outRelations list of incoming relations
+     * @param wholeClass link to the WholeClass
+     * @param isReadOnly check if partClass was mandatory
+     * @param name WholeClass's PartClass
+     * @param roleName PartClass name
+     */
     processOuts(outRelations: ModelGraphNode[], wholeClass: ModelGraphNode, 
                isReadOnly: boolean, name: string, roleName: string) {
-        outRelations.forEach(outRelation => {
-            if (stereotypeUtils.MomentOnlyStereotypes.includes((outRelation.outs[0].element as Class).stereotype)) {
+        while (outRelations.length > 0) {
+            if (stereotypeUtils.MomentOnlyStereotypes.includes((outRelations[0].outs[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
-                outRelation.moveRelationFrom(wholeClass, roleName, false, false, false, true);
-                (outRelation.element as Relation).properties[0].cardinality.setUpperBoundFromNumber(1);
-            } else if (stereotypeUtils.isEventClassStereotype((outRelation.outs[0].element as Class).stereotype)) {
+                outRelations[0].moveRelationFrom(wholeClass, roleName, 
+                        false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+            } else if (stereotypeUtils.isEventClassStereotype((outRelations[0].outs[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
-                if (((outRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
-                    outRelation.moveRelationFrom(wholeClass, roleName, false, false, false, true);
-                    (outRelation.element as Relation).properties[0].cardinality.setUpperBoundFromNumber(1);
+                if (((outRelations[0].element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
+                    outRelations[0].moveRelationFrom(wholeClass, roleName, 
+                            false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
-                    this.graph.removeRelation(outRelation);                        
+                    this.graph.removeRelation(outRelations[0]);                        
                 }
             } else {
                 // relation comes from any general class 
                 if (name){
-                    if (outRelation.element.getName()) {
-                        name =  name + outRelation.element.getName();
+                    if (outRelations[0].element.getName()) {
+                        name =  name + outRelations[0].element.getName();
                     }
-                    outRelation.element.setName(name);
+                    outRelations[0].element.setName(name);
                 }
-                outRelation.moveRelationFrom(wholeClass, roleName, false, false, false, true);
-                (outRelation.element as Relation).properties[0].cardinality.setUpperBoundFromNumber(1); 
+                outRelations[0].moveRelationFrom(wholeClass, roleName, 
+                        false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             }
-        })
-    }
+        }
+        //newOutRelations.forEach((outRelation, idx) => {
 
+            // this.graph.printRelationById(outRelation.element.id); 
+
+            // if (stereotypeUtils.MomentOnlyStereotypes.includes((outRelation.outs[0].element as Class).stereotype)) {
+            //     // if relation is from Moment Type
+            //     outRelation.moveRelationFrom(wholeClass, roleName, 
+            //             false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+            // } else if (stereotypeUtils.isEventClassStereotype((outRelation.outs[0].element as Class).stereotype)) {
+            //     // if relation is from Event, then check also for Termination + ReadOnly property
+            //     if (((outRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
+            //         outRelation.moveRelationFrom(wholeClass, roleName, 
+            //                 false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+            //     } else {
+            //         // if it is Termination relation and PartClass is not mandatory
+            //         this.graph.removeRelation(outRelation);                        
+            //     }
+            // } else {
+            //     // relation comes from any general class 
+            //     if (name){
+            //         if (outRelation.element.getName()) {
+            //             name =  name + outRelation.element.getName();
+            //         }
+            //         outRelation.element.setName(name);
+            //     }
+            //     outRelation.moveRelationFrom(wholeClass, roleName, 
+            //             false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+            // }
+
+            
+        //})
+        
+    }
     // --------------------------------------------------------------------------------
     // Abstracting hierarchy functions
     // --------------------------------------------------------------------------------
@@ -249,7 +304,7 @@ export class AbstractionRules {
         return { graph: this.graph, issues: this.issues}; 
     }
 
-    processGeneralization(generalization: ModelGraphNode){
+    processGeneralization(generalization: ModelGraphNode) {
         const generalClass = generalization.outs[0];
         const specificClass = generalization.ins[0];
         let roleName = specificClass.element.getName();
@@ -262,12 +317,11 @@ export class AbstractionRules {
 
         //move relations upwards
         specificClass.ins.forEach(inRelation => {
-            inRelation.moveRelationTo(generalClass, roleName, true);
-            (inRelation.element as Relation).properties[0].cardinality.setLowerBoundFromNumber(0);
+            inRelation.moveRelationTo(generalClass, roleName, true, CardinalityOptions.SET_LOWER_0);
         })
 
         specificClass.outs.forEach(outRelation => {
-            outRelation.moveRelationFrom(generalClass, roleName, true, false, false, true);
+            outRelation.moveRelationFrom(generalClass, roleName, true, CardinalityOptions.SET_LOWER_0);
         })
         
         this.graph.removeRelation(generalization);

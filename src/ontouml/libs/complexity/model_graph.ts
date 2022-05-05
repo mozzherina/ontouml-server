@@ -23,6 +23,7 @@ export class ModelGraph {
     // --------------------------------------------------------------------------------
     // Construction functions
     // --------------------------------------------------------------------------------    
+
     constructor(model: Package, diagram: Diagram) {
         this.allStereotypes = {};
         this.idMap = {};
@@ -38,10 +39,9 @@ export class ModelGraph {
                 let sourceId = ((relationView as RelationView).source as ClassView).modelElement.id;
                 let targetId = ((relationView as RelationView).target as ClassView).modelElement.id;
                 
-                // TODO: delete when error with aggregation is fixed
-                if ((relationView.type === OntoumlType.RELATION_VIEW) && 
-                    ((relation.element as Relation).properties[0]
-                        .aggregationKind === AggregationKind.COMPOSITE)) {
+                if ((relationView.type === OntoumlType.GENERALIZATION_VIEW) ||
+                    // TODO: delete when error with aggregation is fixed
+                    ((relation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE)) {
                     const id = sourceId;
                     sourceId = targetId;
                     targetId = id;
@@ -188,10 +188,11 @@ export class ModelGraph {
 
     getPartOfRelations(): ModelGraphNode[] {
         return Object.values(this.allRelations)
+            .filter(node => node.element.type === OntoumlType.RELATION_TYPE)
             .filter(relationNode => {
                 const relation = relationNode.element as Relation;
-                return (relation.properties[0].aggregationKind === AggregationKind.COMPOSITE)
-                    || (relation.properties[1].aggregationKind === AggregationKind.COMPOSITE)
+                return (relation.properties[0].aggregationKind != AggregationKind.NONE)
+                    || (relation.properties[1].aggregationKind != AggregationKind.NONE)
             }) || [];
     }
 
@@ -201,7 +202,7 @@ export class ModelGraph {
      */
     removeRelation(relation: ModelGraphNode) {
         // in case the relation has been already processed
-        if (relation){
+        if (relation) {
             // because of the generalization set, which has more than one incoming
             relation.ins.forEach(inNode => inNode.removeOutRelation(relation));
             relation.outs[0].removeInRelation(relation);
@@ -301,15 +302,17 @@ export class ModelGraph {
     }
 
     printRelationById(id: string) {
-        let name = this.allRelations[id].element.getName() ;
-        if (name) { 
-            name = "[" + name + "] -> ";
-        } else {
-            name = "";
+        if (this.allRelations[id]){
+            let name = this.allRelations[id].element.getName() ;
+            if (name) { 
+                name = "[" + name + "] -> ";
+            } else {
+                name = "";
+            }
+            console.log(this.allRelations[id].ins[0].element.getName() 
+                        + " -> " + name 
+                        + this.allRelations[id].outs[0].element.getName());   
         }
-        console.log(this.allRelations[id].ins[0].element.getName() 
-                    + " -> " + name 
-                    + this.allRelations[id].outs[0].element.getName());   
     }
 
     printNodes(){

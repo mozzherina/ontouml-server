@@ -11,7 +11,9 @@ import { ModelGraph, AbstractionIssue } from ".";
  * Class that implements abstraction algorithm proposed in:
  *
  * Romanenko, E., Calvanese, D. and Guizzardi, G. (2022)
- * Ontology-Based Model Abstraction Reviewed.
+ * Abstracting Ontology-Driven Conceptual Models:
+ * Objects, Aspects, Events, and their Parts
+ * In: Proc. of Int. Conf. on Research Challenges in Inf. Sc. (RCIS'22)
  *
  * @author Elena Romanenko
  */
