@@ -279,14 +279,14 @@ export class ModelGraph {
         }
 
         if (!toNode) {
-            relationNode.moveRelationFrom(fromNode, "", false, CardinalityOptions.RESET, CardinalityOptions.SET_LOWER_0);
+            relationNode.moveRelationFrom(toNode, fromNode, "", false, CardinalityOptions.RESET, CardinalityOptions.SET_LOWER_0);
             if (relation.getName()){
                 roleName =  roleName + " " + relation.getName();
             }
             relation.setName(fromNode.element.getName() + "'s " + roleName);
         } else {
-            relationNode.moveRelationFrom(fromNode, "", false, CardinalityOptions.RESET);
-            relationNode.moveRelationTo(toNode, "", false, CardinalityOptions.SET_LOWER_0);
+            relationNode.moveRelationFrom(toNode, fromNode, "", false, CardinalityOptions.RESET);
+            relationNode.moveRelationTo(fromNode, toNode, "", false, CardinalityOptions.SET_LOWER_0);
             relation.stereotype = RelationStereotype.PARTICIPATION;
         }
     }

@@ -74,6 +74,7 @@ export class ModelGraphNode {
      * @param cardinalityFrom change 'from' cardinality
      */
     moveRelationTo(
+        origin: ModelGraphNode,
         newOut: ModelGraphNode, 
         roleName: string = undefined, 
         keepOldRole: boolean = true,
@@ -81,11 +82,12 @@ export class ModelGraphNode {
         cardinalityFrom = CardinalityOptions.NONE
     ) {
         this.outs[0].removeInRelation(this);
-        this.outs[0] =  newOut;
+        this.outs[0] = newOut;
         newOut.ins.push(this);
         
         // change link in properties section
         let propFrom = (this.element as Relation).properties[0];
+        propFrom.propertyType = (origin.element as Class); 
         let propTo = (this.element as Relation).properties[1];
         propTo.propertyType = (newOut.element as Class);
 
@@ -123,6 +125,7 @@ export class ModelGraphNode {
      * @param cardinalityTo change 'to' cardinality
      */
     moveRelationFrom(
+        origin: ModelGraphNode,
         newIn: ModelGraphNode, 
         roleName: string = undefined, 
         keepOldRole: boolean = true,
@@ -130,14 +133,15 @@ export class ModelGraphNode {
         cardinalityTo = CardinalityOptions.NONE
     ) {
         this.ins[0].removeOutRelation(this);
-        this.ins[0] =  newIn;
+        this.ins[0] = newIn;
         newIn.outs.push(this);
         
         // change link in properties section
         let propFrom = (this.element as Relation).properties[0];
         propFrom.propertyType = (newIn.element as Class);
         let propTo = (this.element as Relation).properties[1];
-
+        propTo.propertyType = (origin.element as Class); 
+        
         // set up cardinality
         this.setCardinality(propFrom, cardinalityFrom);
         this.setCardinality(propTo, cardinalityTo);

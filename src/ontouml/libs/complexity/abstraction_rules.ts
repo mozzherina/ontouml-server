@@ -66,15 +66,15 @@ export class AbstractionRules {
                 stereotypeUtils.PartWholeRelationStereotypes.includes((inRelation.element as Relation).stereotype) 
                 // TODO: change this to 1, when error with composition ends is fixed
                 // TODO: check if properties is defined
-                || (inRelation.element as Relation).properties[0].aggregationKind != AggregationKind.NONE
+                || (inRelation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE
             );
         this.parthood(partRelations);
 
         // abstract from generalizations and generalization sets
         const generalizations = graphNode.ins.filter(inRelation => 
-            inRelation.element.type === OntoumlType.GENERALIZATION_VIEW);
+            inRelation.element.type === OntoumlType.GENERALIZATION_TYPE);
         const sets = graphNode.ins.filter(inRelation =>
-            inRelation.element.type === OntoumlType.GENERALIZATION_SET_VIEW);
+            inRelation.element.type === OntoumlType.GENERALIZATION_SET_TYPE);
         this.hierarchy(generalizations, sets);
 
         // debug
@@ -190,12 +190,12 @@ export class AbstractionRules {
         //inRelations.forEach(inRelation => {
             if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelations[0].ins[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
-                inRelations[0].moveRelationTo(wholeClass, roleName, 
+                inRelations[0].moveRelationTo(inRelations[0].ins[0], wholeClass, roleName, 
                         false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             } else if (stereotypeUtils.isEventClassStereotype((inRelations[0].ins[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
                 if (((inRelations[0].element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
-                    inRelations[0].moveRelationTo(wholeClass, roleName, 
+                    inRelations[0].moveRelationTo(inRelations[0].ins[0], wholeClass, roleName, 
                             false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
@@ -209,7 +209,7 @@ export class AbstractionRules {
                     }
                     inRelations[0].element.setName(name);
                 }   
-                inRelations[0].moveRelationTo(wholeClass, roleName, 
+                inRelations[0].moveRelationTo(inRelations[0].ins[0], wholeClass, roleName, 
                         false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             }
         } //)
@@ -229,12 +229,12 @@ export class AbstractionRules {
         while (outRelations.length > 0) {
             if (stereotypeUtils.MomentOnlyStereotypes.includes((outRelations[0].outs[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
-                outRelations[0].moveRelationFrom(wholeClass, roleName, 
+                outRelations[0].moveRelationFrom(outRelations[0].outs[0], wholeClass, roleName, 
                         false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             } else if (stereotypeUtils.isEventClassStereotype((outRelations[0].outs[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
                 if (((outRelations[0].element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
-                    outRelations[0].moveRelationFrom(wholeClass, roleName, 
+                    outRelations[0].moveRelationFrom(outRelations[0].outs[0], wholeClass, roleName, 
                             false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
@@ -248,43 +248,12 @@ export class AbstractionRules {
                     }
                     outRelations[0].element.setName(name);
                 }
-                outRelations[0].moveRelationFrom(wholeClass, roleName, 
+                outRelations[0].moveRelationFrom(outRelations[0].outs[0], wholeClass, roleName, 
                         false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             }
         }
-        //newOutRelations.forEach((outRelation, idx) => {
-
-            // this.graph.printRelationById(outRelation.element.id); 
-
-            // if (stereotypeUtils.MomentOnlyStereotypes.includes((outRelation.outs[0].element as Class).stereotype)) {
-            //     // if relation is from Moment Type
-            //     outRelation.moveRelationFrom(wholeClass, roleName, 
-            //             false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
-            // } else if (stereotypeUtils.isEventClassStereotype((outRelation.outs[0].element as Class).stereotype)) {
-            //     // if relation is from Event, then check also for Termination + ReadOnly property
-            //     if (((outRelation.element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
-            //         outRelation.moveRelationFrom(wholeClass, roleName, 
-            //                 false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
-            //     } else {
-            //         // if it is Termination relation and PartClass is not mandatory
-            //         this.graph.removeRelation(outRelation);                        
-            //     }
-            // } else {
-            //     // relation comes from any general class 
-            //     if (name){
-            //         if (outRelation.element.getName()) {
-            //             name =  name + outRelation.element.getName();
-            //         }
-            //         outRelation.element.setName(name);
-            //     }
-            //     outRelation.moveRelationFrom(wholeClass, roleName, 
-            //             false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
-            // }
-
-            
-        //})
-        
     }
+    
     // --------------------------------------------------------------------------------
     // Abstracting hierarchy functions
     // --------------------------------------------------------------------------------
@@ -316,13 +285,23 @@ export class AbstractionRules {
         this.foldNode(specificClass);
 
         //move relations upwards
-        specificClass.ins.forEach(inRelation => {
-            inRelation.moveRelationTo(generalClass, roleName, true, CardinalityOptions.SET_LOWER_0);
-        })
+        specificClass.ins
+            .filter(inRelation => 
+                        inRelation.element.type != OntoumlType.GENERALIZATION_TYPE
+                        && inRelation.element.type != OntoumlType.GENERALIZATION_SET_TYPE)
+            .forEach(inRelation => {
+                        inRelation.moveRelationTo(inRelation.ins[0], generalClass, 
+                                roleName, true, CardinalityOptions.NONE, CardinalityOptions.SET_LOWER_0);
+                })
 
-        specificClass.outs.forEach(outRelation => {
-            outRelation.moveRelationFrom(generalClass, roleName, true, CardinalityOptions.SET_LOWER_0);
-        })
+        specificClass.outs
+            .filter(outRelation => 
+                        outRelation.element.type != OntoumlType.GENERALIZATION_TYPE
+                        && outRelation.element.type != OntoumlType.GENERALIZATION_SET_TYPE)
+            .forEach(outRelation => {
+                        outRelation.moveRelationFrom(outRelation.outs[0], generalClass, 
+                                roleName, true,  CardinalityOptions.SET_LOWER_0);
+                })
         
         this.graph.removeRelation(generalization);
         this.graph.removeNode(specificClass);
