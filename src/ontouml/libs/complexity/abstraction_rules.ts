@@ -65,8 +65,8 @@ export class AbstractionRules {
                 // TODO: remove this, when error with composition ends is fixed
                 stereotypeUtils.PartWholeRelationStereotypes.includes((inRelation.element as Relation).stereotype) 
                 // TODO: change this to 1, when error with composition ends is fixed
-                // TODO: check if properties is defined
-                || (inRelation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE
+                || ((inRelation.element as Relation).properties
+                    && (inRelation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE)
             );
         this.parthood(partRelations);
 

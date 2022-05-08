@@ -45,11 +45,16 @@ export class Abstractor implements Service {
     // debug
     this.graph.printGraph();
     // -----
-    const model = this.graph.exportModel(this.name);
-    const diagram = this.graph.exportDiagram(this.name, model);
-    this.project.model.contents.push(model);    
-    this.project.addDiagram(diagram);
+    
+    // if (this.options.activeElementId){
+    // const idx = this.project.diagrams.findIndex(elem => elem.id === this.options.activeDiagramId)
+    // this.project.diagrams[idx] = diagram;
 
+    const model = this.graph.exportModel(this.name);
+    const diagram = this.graph.exportDiagram(this.name, model);   
+    this.project.model.contents.push(model); 
+    this.project.addDiagram(diagram);
+    
     return {
       result: this.project,
       issues: this.issues
