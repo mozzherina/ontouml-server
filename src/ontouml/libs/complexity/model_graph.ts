@@ -31,23 +31,28 @@ export class ModelGraph {
         diagram.getContents()
             .filter(e => e.type === OntoumlType.CLASS_VIEW)
             .forEach(classView => this.includeElement(this.allNodes, classView, model));
-        
+
         diagram.getContents()
             .filter(e => (e.type === OntoumlType.RELATION_VIEW) || (e.type === OntoumlType.GENERALIZATION_VIEW))
             .forEach(relationView => {
-                const relation = this.includeElement(this.allRelations, relationView, model);
                 let sourceId = ((relationView as RelationView).source as ClassView).modelElement.id;
                 let targetId = ((relationView as RelationView).target as ClassView).modelElement.id;
                 
-                if ((relationView.type === OntoumlType.GENERALIZATION_VIEW) ||
-                    // TODO: delete when error with aggregation is fixed
-                    ((relation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE)) {
-                    const id = sourceId;
-                    sourceId = targetId;
-                    targetId = id;
+                // for the case of association classes and anchors
+                if (this.allNodes[sourceId] && this.allNodes[targetId]) {
+                    const relation = this.includeElement(this.allRelations, relationView, model);
+                
+                    if ((relationView.type === OntoumlType.GENERALIZATION_VIEW) ||
+                        // TODO: delete when error with aggregation is fixed
+                        ((relation.element as Relation).properties[0].aggregationKind === AggregationKind.COMPOSITE)) {
+                        const id = sourceId;
+                        sourceId = targetId;
+                        targetId = id;
+                    }
+
+                    this.createConnection(this.allNodes[sourceId], relation);
+                    this.createConnection(relation, this.allNodes[targetId]);   
                 }
-                this.createConnection(this.allNodes[sourceId], relation);
-                this.createConnection(relation, this.allNodes[targetId]);   
             });
         
         diagram.getContents()
