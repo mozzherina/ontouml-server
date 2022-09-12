@@ -3,7 +3,7 @@ import { Service } from '@libs/service';
 import { ServiceIssue } from '@libs/service_issue';
 import { AbstractionOptions } from './options';
 import { AbstractionRules } from './abstraction_rules';
-import { cloneDeep } from 'lodash'
+import { cloneDeep } from 'lodash';
 import { ModelGraph, AbstractionIssue } from ".";
 
 
@@ -45,10 +45,6 @@ export class Abstractor implements Service {
     // debug
     this.graph.printGraph();
     // -----
-    
-    // if (this.options.activeElementId){
-    // const idx = this.project.diagrams.findIndex(elem => elem.id === this.options.activeDiagramId)
-    // this.project.diagrams[idx] = diagram;
 
     const model = this.graph.exportModel(this.name);
     const diagram = this.graph.exportDiagram(this.name, model);   

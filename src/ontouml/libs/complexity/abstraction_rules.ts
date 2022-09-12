@@ -187,7 +187,6 @@ export class AbstractionRules {
     processIns(inRelations: ModelGraphNode[], wholeClass: ModelGraphNode, 
                isReadOnly: boolean, name: string, roleName: string){
         while (inRelations.length > 0) {
-        //inRelations.forEach(inRelation => {
             if (stereotypeUtils.MomentOnlyStereotypes.includes((inRelations[0].ins[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
                 inRelations[0].moveRelationTo(inRelations[0].ins[0], wholeClass, roleName, 
@@ -212,7 +211,7 @@ export class AbstractionRules {
                 inRelations[0].moveRelationTo(inRelations[0].ins[0], wholeClass, roleName, 
                         false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
             }
-        } //)
+        }
     }
 
     /**
@@ -230,12 +229,12 @@ export class AbstractionRules {
             if (stereotypeUtils.MomentOnlyStereotypes.includes((outRelations[0].outs[0].element as Class).stereotype)) {
                 // if relation is from Moment Type
                 outRelations[0].moveRelationFrom(outRelations[0].outs[0], wholeClass, roleName, 
-                        false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+                        false, CardinalityOptions.SET_LOWER_0, CardinalityOptions.SET_UPPER_1);
             } else if (stereotypeUtils.isEventClassStereotype((outRelations[0].outs[0].element as Class).stereotype)) {
                 // if relation is from Event, then check also for Termination + ReadOnly property
                 if (((outRelations[0].element as Relation).stereotype != RelationStereotype.TERMINATION) || isReadOnly) {
                     outRelations[0].moveRelationFrom(outRelations[0].outs[0], wholeClass, roleName, 
-                            false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+                            false, CardinalityOptions.SET_LOWER_0, CardinalityOptions.SET_UPPER_1);
                 } else {
                     // if it is Termination relation and PartClass is not mandatory
                     this.graph.removeRelation(outRelations[0]);                        
@@ -249,7 +248,7 @@ export class AbstractionRules {
                     outRelations[0].element.setName(name);
                 }
                 outRelations[0].moveRelationFrom(outRelations[0].outs[0], wholeClass, roleName, 
-                        false, CardinalityOptions.SET_UPPER_1, CardinalityOptions.SET_LOWER_0);
+                        false, CardinalityOptions.SET_LOWER_0, CardinalityOptions.SET_UPPER_1);
             }
         }
     }
@@ -266,8 +265,8 @@ export class AbstractionRules {
         console.log("Number of generalizations: " + generalizations.length);
         console.log("Number of generalization sets: " + sets.length);
         // TODO: complete for generalization sets
-        // if there is a generalization
-        // and it is disjoint and complete...
+        // if there is a generalization and it is disjoint and complete...
+        // REMOVING so far, see model_graph
 
         generalizations?.forEach(generalization => this.processGeneralization(generalization));
         return { graph: this.graph, issues: this.issues}; 

@@ -1,5 +1,5 @@
 import { ModelGraphNode } from ".";
-import { Diagram, DiagramElement, Generalization, GeneralizationSet, ModelElement, OntoumlElement, 
+import { Diagram, DiagramElement, ModelElement, OntoumlElement, 
     OntoumlType, Package, Relation, Stereotype, RelationStereotype, RelationView, ClassView, AggregationKind } from "@libs/ontouml";
 import uniqid from 'uniqid';
 import { cloneDeep } from 'lodash'
@@ -55,6 +55,8 @@ export class ModelGraph {
                 }
             });
         
+        // generalization sets are removed until the hierarchy rules are fixed
+        /*
         diagram.getContents()
             .filter(e => e.type === OntoumlType.GENERALIZATION_SET_VIEW)
             .forEach(genSetView => {
@@ -67,6 +69,7 @@ export class ModelGraph {
                 const generalization = this.allRelations[generalizations[0].id].element as Generalization;
                 this.createConnection(node, this.allNodes[generalization.general.id]);
             });
+        */
     }
 
     /**
@@ -284,6 +287,7 @@ export class ModelGraph {
         }
 
         if (!toNode) {
+            // TODO fix this, since toNode = undefined and then we ask for an element
             relationNode.moveRelationFrom(toNode, fromNode, "", false, CardinalityOptions.RESET, CardinalityOptions.SET_LOWER_0);
             if (relation.getName()){
                 roleName =  roleName + " " + relation.getName();
